@@ -5,7 +5,8 @@
 declare const __API_URL__: string;
 
 const CONFIG = {
-  API_URL: typeof __API_URL__ !== 'undefined' ? __API_URL__ : "http://localhost:5000",
+  API_URL:
+    typeof __API_URL__ !== "undefined" ? __API_URL__ : "http://localhost:5000",
   BUTTON_ICON: "💬",
   BUTTON_COLOR: "#0a66c2", // LinkedIn blue
 };
@@ -1085,6 +1086,14 @@ function createPenButton(targetBox: HTMLElement): HTMLElement {
     <div class="pen-icon">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M4.7134 7.12811L4.46682 7.69379C4.28637 8.10792 3.71357 8.10792 3.53312 7.69379L3.28656 7.12811C2.84706 6.11947 2.05545 5.31641 1.06767 4.87708L0.308047 4.53922C-0.102682 4.35653 -0.102682 3.75881 0.308047 3.57612L1.0252 3.25714C2.03838 2.80651 2.84417 1.97373 3.27612 0.930828L3.52932 0.319534C3.70578 -0.106511 4.29417 -0.106511 4.47063 0.319534L4.72382 0.930828C5.15577 1.97373 5.96158 2.80651 6.9748 3.25714L7.69188 3.57612C8.10271 3.75881 8.10271 4.35653 7.69188 4.53922L6.93228 4.87708C5.94451 5.31641 5.15288 6.11947 4.7134 7.12811ZM3.06361 21.6132C4.08854 15.422 6.31105 1.99658 21 1.99658C19.5042 4.99658 18.5 6.49658 17.5 7.49658L16.5 8.49658L18 9.49658C17 12.4966 14 15.9966 10 16.4966C7.33146 16.8301 5.66421 18.6635 4.99824 21.9966H3C3.02074 21.8722 3.0419 21.7443 3.06361 21.6132Z"></path></svg>
     </div>
+    <div class="pen-menu">
+      <div class="pen-menu-item" id="pen-power" title="Disable">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 10.5858L9.17157 7.75736L7.75736 9.17157L10.5858 12L7.75736 14.8284L9.17157 16.2426L12 13.4142L14.8284 16.2426L16.2426 14.8284L13.4142 12L16.2426 9.17157L14.8284 7.75736L12 10.5858Z"></path></svg>
+      </div>
+      <div class="pen-menu-item" id="pen-settings" title="Settings">
+       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M15.9991 2.99995C19.3131 2.99995 22 5.69516 22 8.9941V21H8.00099C4.68693 21 2.00001 18.3048 2.00001 15.0058V10.6572C2.62568 10.8784 3.29859 11 4.00001 11C7.31372 11 10 8.31367 10 4.99995C10 4.29854 9.87844 3.62562 9.65724 2.99995H15.9991ZM8.00002 13H10V11H8.00002V13ZM14 13H16V11H14V13ZM3.52931 1.31928C3.70584 0.89349 4.29418 0.893492 4.47071 1.31928L4.72364 1.93061C5.15555 2.9734 5.96155 3.80612 6.97462 4.25679L7.6924 4.57612C8.10268 4.75894 8.10263 5.35615 7.6924 5.53902L6.93263 5.87691C5.94498 6.31619 5.15339 7.11941 4.71388 8.12789L4.46681 8.69332C4.28636 9.10745 3.71366 9.10745 3.53321 8.69332L3.28614 8.12789C2.84661 7.11942 2.05506 6.31619 1.06739 5.87691L0.307623 5.53902C-0.102517 5.35615 -0.102565 4.75894 0.307623 4.57612L1.0254 4.25679C2.03845 3.80613 2.84446 2.97343 3.27638 1.93061L3.52931 1.31928Z"></path></svg>
+      </div>
+    </div>
   `;
   penContainer.title = "Click for quick responses (Ctrl+Shift+L)";
 
@@ -1094,6 +1103,20 @@ function createPenButton(targetBox: HTMLElement): HTMLElement {
     e.stopPropagation();
     // showResponseMenu(targetBox, penContainer);
     createResponsePopup(penContainer, targetBox);
+  });
+
+  // Add listeners for new buttons
+  const powerBtn = penContainer.querySelector("#pen-power");
+  const settingsBtn = penContainer.querySelector("#pen-settings");
+
+  powerBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    console.log("Power button clicked");
+  });
+
+  settingsBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    console.log("Settings button clicked");
   });
 
   // Enhanced hover effects with platform detection
@@ -1756,14 +1779,14 @@ function showCreateModal(
 async function createResponse(data: any): Promise<void> {
   try {
     // Get JWT token
-    const storage = await chrome.storage.local.get(['app_jwt_token']);
+    const storage = await chrome.storage.local.get(["app_jwt_token"]);
     const token = storage.app_jwt_token;
-    
+
     const headers: any = { "Content-Type": "application/json" };
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
     }
-    
+
     // Try backend first
     const response = await fetch(`${CONFIG.API_URL}/api/responses`, {
       method: "POST",
@@ -1967,14 +1990,14 @@ function showEditModal(
 async function updateResponse(id: string, data: Partial<any>): Promise<void> {
   try {
     // Get JWT token
-    const storage = await chrome.storage.local.get(['app_jwt_token']);
+    const storage = await chrome.storage.local.get(["app_jwt_token"]);
     const token = storage.app_jwt_token;
-    
+
     const headers: any = { "Content-Type": "application/json" };
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
     }
-    
+
     // Try backend first
     const response = await fetch(`${CONFIG.API_URL}/api/responses/${id}`, {
       method: "PUT",
@@ -2018,14 +2041,14 @@ async function updateResponse(id: string, data: Partial<any>): Promise<void> {
 async function deleteResponse(id: string): Promise<void> {
   try {
     // Get JWT token
-    const storage = await chrome.storage.local.get(['app_jwt_token']);
+    const storage = await chrome.storage.local.get(["app_jwt_token"]);
     const token = storage.app_jwt_token;
-    
+
     const headers: any = {};
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
     }
-    
+
     // Try backend first
     const response = await fetch(`${CONFIG.API_URL}/api/responses/${id}`, {
       method: "DELETE",
@@ -2062,9 +2085,9 @@ async function deleteResponse(id: string): Promise<void> {
 async function fetchResponses(): Promise<any[]> {
   try {
     // Get JWT token from storage
-    const storage = await chrome.storage.local.get(['app_jwt_token']);
+    const storage = await chrome.storage.local.get(["app_jwt_token"]);
     const token = storage.app_jwt_token;
-    
+
     if (!token) {
       console.log("Canner: No auth token, using local storage");
       // Fallback to Chrome storage
@@ -2074,14 +2097,14 @@ async function fetchResponses(): Promise<any[]> {
         });
       });
     }
-    
+
     // Try backend with authentication
     const response = await fetch(`${CONFIG.API_URL}/api/responses`, {
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        Authorization: `Bearer ${token}`,
+      },
     });
-    
+
     if (response.ok) {
       const data = await response.json();
       // Cache in Chrome storage
@@ -2519,14 +2542,14 @@ async function _showSaveDialog(text: string) {
 
     // Save the response
     try {
-      const storage = await chrome.storage.local.get(['app_jwt_token']);
+      const storage = await chrome.storage.local.get(["app_jwt_token"]);
       const token = storage.app_jwt_token;
-      
+
       const headers: any = { "Content-Type": "application/json" };
       if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+        headers["Authorization"] = `Bearer ${token}`;
       }
-      
+
       const response = await fetch(`${CONFIG.API_URL}/api/responses`, {
         method: "POST",
         headers,
@@ -2621,17 +2644,17 @@ async function saveResponseDirectly(text: string) {
 
   // Try to save to backend first
   try {
-    const storage = await chrome.storage.local.get(['app_jwt_token']);
+    const storage = await chrome.storage.local.get(["app_jwt_token"]);
     const token = storage.app_jwt_token;
-    
+
     const headers: any = {
       "Content-Type": "application/json",
       Accept: "application/json",
     };
     if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
     }
-    
+
     const response = await fetch(`${CONFIG.API_URL}/api/responses`, {
       method: "POST",
       headers,
