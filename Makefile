@@ -30,7 +30,7 @@ help:
 
 # Alias for building the extension 
 build:
-	cd "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))browser-extension" && npm run build
+	cd "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))browser-extension" && npm run build:dev
 
 # Alias for convenience
 lint: lint-all

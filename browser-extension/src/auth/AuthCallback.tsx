@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import './auth-callback.css';
 import config from '../config/config';
 
-const BACKEND_URL = config.BACKEND_URL;
+const AUTH_URL = config.AUTH_URL;
 
 interface TokenResponse {
   jwt_token: string;
@@ -17,8 +17,14 @@ const AuthCallback: React.FC = () => {
   const [message, setMessage] = useState('Completing authentication...');
   const [errorDetail, setErrorDetail] = useState('');
   const [userId, setUserId] = useState('');
+  const hasAttemptedRef = useRef(false);
 
   useEffect(() => {
+    // Use ref to prevent duplicate calls - refs persist across renders
+    if (hasAttemptedRef.current) {
+      return;
+    }
+    hasAttemptedRef.current = true;
     handleAuthCallback();
   }, []);
 
@@ -38,9 +44,9 @@ const AuthCallback: React.FC = () => {
       // Exchange the code for a JWT token
       setMessage('Exchanging authorization code...');
       
-      console.log('Sending exchange request to:', `${BACKEND_URL}/api/auth/extension/exchange-code`);
+      console.log('Sending exchange request to:', `${AUTH_URL}/api/auth/extension/exchange-code`);
       
-      const response = await fetch(`${BACKEND_URL}/api/auth/extension/exchange-code`, {
+      const response = await fetch(`${AUTH_URL}/api/auth/extension/exchange-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

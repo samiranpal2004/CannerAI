@@ -17,6 +17,8 @@ module.exports = {
         filename: '[name].js',
         clean: true
     },
+    // Use CSP-compliant source maps for Chrome extensions (no eval)
+    devtool: process.env.NODE_ENV === 'production' ? 'source-map' : 'cheap-module-source-map',
     module: {
         rules: [
             {

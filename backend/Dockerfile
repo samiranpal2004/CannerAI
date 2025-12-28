@@ -17,7 +17,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY app.py database.py models.py ./
+COPY app.py database.py models.py extension_auth.py ./
 
 # Create a non-root user for security
 RUN useradd -m appuser && chown -R appuser:appuser /app
