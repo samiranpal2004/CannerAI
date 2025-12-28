@@ -76,8 +76,11 @@ async function generateGeminiResponse(targetBox: HTMLElement) {
 
     // Gather context (last few messages/comments from the page)
     const context = gatherPageContext(targetBox);
-    
-    console.log('📤 Sending to Gemini:', { textLength: text.length, contextItems: context.length });
+
+    console.log("📤 Sending to Gemini:", {
+      textLength: text.length,
+      contextItems: context.length,
+    });
 
     // Show loading state
     showLoadingInInput(targetBox, "✨ Generating AI response...");
@@ -148,47 +151,57 @@ function showLoadingInInput(element: HTMLElement, message: string) {
 // Helper: Gather context from page (improved for LinkedIn)
 function gatherPageContext(targetInput: HTMLElement): string[] {
   const context: string[] = [];
-  
-  console.log('🔍 Gathering context for Gemini...');
+
+  console.log("🔍 Gathering context for Gemini...");
 
   // Strategy 1: Find the closest post/article container from the input
-  let postContainer = targetInput.closest('article, [data-urn], .feed-shared-update-v2, .occludable-update');
-  
+  let postContainer = targetInput.closest(
+    "article, [data-urn], .feed-shared-update-v2, .occludable-update"
+  );
+
   if (postContainer) {
-    console.log('✅ Found post container via closest()');
-    
+    console.log("✅ Found post container via closest()");
+
     // Get the main post text (multiple selectors for reliability)
     const postTextSelectors = [
-      '.feed-shared-update-v2__description',
-      '.feed-shared-text',
+      ".feed-shared-update-v2__description",
+      ".feed-shared-text",
       '[data-test-id="main-feed-activity-card__commentary"]',
-      '.update-components-text',
-      'span[dir="ltr"]'
+      ".update-components-text",
+      'span[dir="ltr"]',
     ];
-    
+
     for (const selector of postTextSelectors) {
       const postText = postContainer.querySelector(selector);
-      if (postText && postText.textContent && postText.textContent.trim().length > 20) {
+      if (
+        postText &&
+        postText.textContent &&
+        postText.textContent.trim().length > 20
+      ) {
         const text = postText.textContent.trim();
-        console.log(`✅ Found post text (${text.length} chars):`, text.substring(0, 100) + '...');
+        console.log(
+          `✅ Found post text (${text.length} chars):`,
+          text.substring(0, 100) + "..."
+        );
         context.push(text);
         break;
       }
     }
-    
+
     // Get existing comments
     const commentSelectors = [
-      '.comments-comment-item__main-content',
+      ".comments-comment-item__main-content",
       '[data-test-id="comment"]',
-      '.comment-item'
+      ".comment-item",
     ];
-    
+
     for (const selector of commentSelectors) {
       const comments = postContainer.querySelectorAll(selector);
       if (comments.length > 0) {
         console.log(`✅ Found ${comments.length} comments`);
         comments.forEach((comment, idx) => {
-          if (idx < 3) { // Only get last 3 comments
+          if (idx < 3) {
+            // Only get last 3 comments
             const commentText = comment.textContent?.trim();
             if (commentText && commentText.length > 10) {
               context.push(commentText);
@@ -199,25 +212,32 @@ function gatherPageContext(targetInput: HTMLElement): string[] {
       }
     }
   }
-  
+
   // Strategy 2: If no container found, search the whole page
   if (context.length === 0) {
-    console.log('⚠️ No post container found, searching entire page...');
-    
+    console.log("⚠️ No post container found, searching entire page...");
+
     // Look for any visible post near the input
-    const allPosts = document.querySelectorAll('article, .feed-shared-update-v2, [data-urn]');
-    
+    const allPosts = document.querySelectorAll(
+      "article, .feed-shared-update-v2, [data-urn]"
+    );
+
     for (const post of Array.from(allPosts)) {
       const rect = post.getBoundingClientRect();
       const inputRect = targetInput.getBoundingClientRect();
-      
+
       // Check if this post is near the input (within 500px)
       if (Math.abs(rect.top - inputRect.top) < 500) {
-        const postText = post.querySelector('.feed-shared-text, .update-components-text, span[dir]');
+        const postText = post.querySelector(
+          ".feed-shared-text, .update-components-text, span[dir]"
+        );
         if (postText && postText.textContent) {
           const text = postText.textContent.trim();
           if (text.length > 20) {
-            console.log('✅ Found nearby post text:', text.substring(0, 100) + '...');
+            console.log(
+              "✅ Found nearby post text:",
+              text.substring(0, 100) + "..."
+            );
             context.push(text);
             break;
           }
@@ -225,7 +245,7 @@ function gatherPageContext(targetInput: HTMLElement): string[] {
       }
     }
   }
-  
+
   console.log(`📦 Total context items: ${context.length}`);
   return context;
 }
