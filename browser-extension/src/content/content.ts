@@ -66,6 +66,261 @@ function makeDraggable(popup: HTMLElement) {
   observer.observe(document.body, { childList: true });
 }
 
+// ========================================
+// Gemini AI Response Generation
+// ========================================
+async function generateGeminiResponse(targetBox: HTMLElement) {
+  try {
+    // Get the text from input
+    const text = getInputValue(targetBox);
+
+    // Gather context (last few messages/comments from the page)
+    const context = gatherPageContext(targetBox);
+    
+    console.log('📤 Sending to Gemini:', { textLength: text.length, contextItems: context.length });
+
+    // Show loading state
+    showLoadingInInput(targetBox, "✨ Generating AI response...");
+
+    // Call backend
+    const response = await fetch(`${CONFIG.API_URL}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: text,
+        context: context,
+        type: "comment", // or 'dm' based on detection
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to generate response");
+    }
+
+    const data = await response.json();
+
+    // Set the generated reply in the input
+    setInputValue(targetBox, data.reply);
+
+    // Show follow-up suggestion buttons
+    showFollowUpSuggestions(targetBox, data.suggestions, data.reply);
+  } catch (error) {
+    console.error("Gemini generation error:", error);
+    alert("Failed to generate response. Please try again.");
+  }
+}
+
+// Helper: Get text from various input types
+function getInputValue(element: HTMLElement): string {
+  if (
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLInputElement
+  ) {
+    return element.value;
+  }
+  if (element.isContentEditable) {
+    return element.innerText;
+  }
+  return "";
+}
+
+// Helper: Set text in various input types
+function setInputValue(element: HTMLElement, value: string) {
+  if (
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLInputElement
+  ) {
+    element.value = value;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  } else if (element.isContentEditable) {
+    element.innerText = value;
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+}
+
+// Helper: Show loading message
+function showLoadingInInput(element: HTMLElement, message: string) {
+  const originalValue = getInputValue(element);
+  setInputValue(element, message);
+  element.setAttribute("data-original", originalValue);
+}
+
+// Helper: Gather context from page (improved for LinkedIn)
+function gatherPageContext(targetInput: HTMLElement): string[] {
+  const context: string[] = [];
+  
+  console.log('🔍 Gathering context for Gemini...');
+
+  // Strategy 1: Find the closest post/article container from the input
+  let postContainer = targetInput.closest('article, [data-urn], .feed-shared-update-v2, .occludable-update');
+  
+  if (postContainer) {
+    console.log('✅ Found post container via closest()');
+    
+    // Get the main post text (multiple selectors for reliability)
+    const postTextSelectors = [
+      '.feed-shared-update-v2__description',
+      '.feed-shared-text',
+      '[data-test-id="main-feed-activity-card__commentary"]',
+      '.update-components-text',
+      'span[dir="ltr"]'
+    ];
+    
+    for (const selector of postTextSelectors) {
+      const postText = postContainer.querySelector(selector);
+      if (postText && postText.textContent && postText.textContent.trim().length > 20) {
+        const text = postText.textContent.trim();
+        console.log(`✅ Found post text (${text.length} chars):`, text.substring(0, 100) + '...');
+        context.push(text);
+        break;
+      }
+    }
+    
+    // Get existing comments
+    const commentSelectors = [
+      '.comments-comment-item__main-content',
+      '[data-test-id="comment"]',
+      '.comment-item'
+    ];
+    
+    for (const selector of commentSelectors) {
+      const comments = postContainer.querySelectorAll(selector);
+      if (comments.length > 0) {
+        console.log(`✅ Found ${comments.length} comments`);
+        comments.forEach((comment, idx) => {
+          if (idx < 3) { // Only get last 3 comments
+            const commentText = comment.textContent?.trim();
+            if (commentText && commentText.length > 10) {
+              context.push(commentText);
+            }
+          }
+        });
+        break;
+      }
+    }
+  }
+  
+  // Strategy 2: If no container found, search the whole page
+  if (context.length === 0) {
+    console.log('⚠️ No post container found, searching entire page...');
+    
+    // Look for any visible post near the input
+    const allPosts = document.querySelectorAll('article, .feed-shared-update-v2, [data-urn]');
+    
+    for (const post of Array.from(allPosts)) {
+      const rect = post.getBoundingClientRect();
+      const inputRect = targetInput.getBoundingClientRect();
+      
+      // Check if this post is near the input (within 500px)
+      if (Math.abs(rect.top - inputRect.top) < 500) {
+        const postText = post.querySelector('.feed-shared-text, .update-components-text, span[dir]');
+        if (postText && postText.textContent) {
+          const text = postText.textContent.trim();
+          if (text.length > 20) {
+            console.log('✅ Found nearby post text:', text.substring(0, 100) + '...');
+            context.push(text);
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  console.log(`📦 Total context items: ${context.length}`);
+  return context;
+}
+
+// Helper: Show follow-up suggestion buttons
+function showFollowUpSuggestions(
+  targetBox: HTMLElement,
+  suggestions: Array<{ label: string; example: string }>,
+  originalReply: string
+) {
+  // Remove existing suggestions
+  const existing = document.querySelector(".gemini-suggestions");
+  if (existing) existing.remove();
+
+  // Create suggestion container
+  const container = document.createElement("div");
+  container.className = "gemini-suggestions";
+  container.style.cssText = `
+    position: absolute;
+    bottom: 40px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    z-index: 9999;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  `;
+
+  suggestions.forEach((suggestion) => {
+    const btn = document.createElement("button");
+    btn.textContent = suggestion.label;
+    btn.className = "gemini-suggestion-btn";
+    btn.style.cssText = `
+      padding: 6px 12px;
+      background: #0a66c2;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background 0.2s;
+    `;
+
+    btn.addEventListener("mouseenter", () => {
+      btn.style.background = "#004182";
+    });
+
+    btn.addEventListener("mouseleave", () => {
+      btn.style.background = "#0a66c2";
+    });
+
+    btn.addEventListener("click", () => {
+      setInputValue(targetBox, suggestion.example);
+      container.remove();
+    });
+
+    container.appendChild(btn);
+  });
+
+  // Add close button
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "✕";
+  closeBtn.style.cssText = `
+    padding: 6px 10px;
+    background: #666;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-left: auto;
+  `;
+  closeBtn.addEventListener("click", () => container.remove());
+  container.appendChild(closeBtn);
+
+  // Position relative to the input
+  const parent = targetBox.parentElement;
+  if (parent && parent.style.position !== "static") {
+    parent.appendChild(container);
+  } else {
+    document.body.appendChild(container);
+    const rect = targetBox.getBoundingClientRect();
+    container.style.position = "fixed";
+    container.style.bottom = `${window.innerHeight - rect.bottom + 45}px`;
+    container.style.left = `${rect.left + 10}px`;
+    container.style.right = "auto";
+    container.style.width = `${rect.width - 20}px`;
+  }
+}
+
 // Function to create and show the popup
 async function createResponsePopup(
   buttonElement: HTMLElement,
@@ -1116,7 +1371,8 @@ function createPenButton(targetBox: HTMLElement): HTMLElement {
 
   settingsBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
-    console.log("Settings button clicked");
+    console.log("AI Response button clicked");
+    generateGeminiResponse(targetBox);
   });
 
   // Enhanced hover effects with platform detection

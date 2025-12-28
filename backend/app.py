@@ -416,6 +416,102 @@ def health_check():
         )
 
 
+# ========================================
+# Gemini AI Response Generation
+# ========================================
+@app.route("/api/generate", methods=["POST"])
+def generate_ai_response():
+    """Generate AI response using Gemini Flash-Lite"""
+    import google.generativeai as genai
+    
+    try:
+        data = request.json
+        text = data.get("text", "")
+        context = data.get("context", [])
+        response_type = data.get("type", "comment")  # "comment" or "dm"
+        
+        logging.info(f"📥 Generate request - Text: {len(text)} chars, Context items: {len(context)}")
+        if context:
+            logging.info(f"📄 First context item preview: {context[0][:100]}...")
+        
+        # Get API key from environment
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return jsonify({"error": "GEMINI_API_KEY not configured"}), 500
+        
+        # Configure Gemini
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        
+        # Build better prompt
+        if context and len(context) > 0:
+            # We have context - write a reply to the post
+            post_content = context[0]
+            existing_comments = context[1:4] if len(context) > 1 else []
+            
+            prompt = f"""You are writing a thoughtful, engaging comment on a LinkedIn post.
+
+POST CONTENT:
+{post_content}
+
+{"EXISTING COMMENTS:" if existing_comments else ""}
+{chr(10).join(f"- {c}" for c in existing_comments) if existing_comments else ""}
+
+{"USER'S DRAFT (optional):" + text if text else ""}
+
+TASK:
+Write ONE natural, professional LinkedIn comment (2-3 sentences, max 40 words).
+- Be genuine and specific to THIS post
+- Show you read and understood it
+- Add value (insight, question, or encouragement)
+- Use casual professional tone
+- NO dashes, bullets, or "Great post!" generic phrases
+
+Also provide 3 different variations as follow-up suggestions.
+
+Return ONLY this JSON format:
+{{"reply": "your specific comment here", "suggestions": [{{"label": "Ask question", "example": "question-based version"}}, {{"label": "Add insight", "example": "version with insight"}}, {{"label": "Shorter", "example": "brief version"}}]}}"""
+        else:
+            # No context - just enhance what user typed
+            prompt = f"""You are improving a social media message.
+
+USER'S TEXT: {text if text else "(empty - write something engaging)"}
+
+TASK:
+Write a short, natural, engaging message (max 40 words).
+Also provide 3 variation suggestions.
+
+Return ONLY this JSON:
+{{"reply": "improved message", "suggestions": [{{"label": "Friendlier", "example": "friendly version"}}, {{"label": "Professional", "example": "professional version"}}, {{"label": "Shorter", "example": "brief version"}}]}}"""
+        
+        logging.info("🤖 Calling Gemini...")
+        
+        # Call Gemini
+        response = model.generate_content(prompt)
+        response_text = response.text.strip()
+        
+        logging.info(f"✅ Gemini response received: {len(response_text)} chars")
+        
+        # Clean response (remove markdown code blocks if present)
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+            response_text = response_text.strip()
+        
+        # Parse JSON
+        import json
+        result = json.loads(response_text)
+        
+        logging.info(f"📤 Sending reply: {result.get('reply', '')[:50]}...")
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        logging.error(f"❌ Gemini API error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     # Configure logging
     logging.basicConfig(
