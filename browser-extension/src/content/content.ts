@@ -74,24 +74,34 @@ async function generateGeminiResponse(targetBox: HTMLElement) {
     // Get the text from input
     const text = getInputValue(targetBox);
 
-    // Gather context (last few messages/comments from the page)
-    const context = gatherPageContext(targetBox);
+    // Gather FULL context including media (images, videos, PDFs)
+    const fullContext = gatherFullPageContext(targetBox);
 
     console.log("📤 Sending to Gemini:", {
       textLength: text.length,
-      contextItems: context.length,
+      textContextItems: fullContext.textContext.length,
+      mediaContextItems: fullContext.mediaContext.length,
     });
 
-    // Show loading state
-    showLoadingInInput(targetBox, "✨ Generating AI response...");
+    // Log media details
+    if (fullContext.mediaContext.length > 0) {
+      console.log("🖼️ Media being sent:");
+      fullContext.mediaContext.forEach((m, i) => {
+        console.log(`  ${i + 1}. [${m.type}] ${m.url.substring(0, 60)}...`);
+      });
+    }
 
-    // Call backend
+    // Show loading state
+    showLoadingInInput(targetBox, "✨ Analyzing post content & media...");
+
+    // Call backend with both text and media context
     const response = await fetch(`${CONFIG.API_URL}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: text,
-        context: context,
+        context: fullContext.textContext,
+        media: fullContext.mediaContext, // NEW: Send media URLs
         type: "comment", // or 'dm' based on detection
       }),
     });
@@ -148,11 +158,214 @@ function showLoadingInInput(element: HTMLElement, message: string) {
   element.setAttribute("data-original", originalValue);
 }
 
-// Helper: Gather context from page (improved for LinkedIn)
-function gatherPageContext(targetInput: HTMLElement): string[] {
-  const context: string[] = [];
+// Interface for media context
+interface MediaContext {
+  type: "image" | "video" | "pdf" | "document";
+  url: string;
+  altText?: string;
+  title?: string;
+}
 
-  console.log("🔍 Gathering context for Gemini...");
+// Interface for full page context
+interface PageContext {
+  textContext: string[];
+  mediaContext: MediaContext[];
+}
+
+// Helper: Extract media from post container
+function extractMediaFromPost(postContainer: Element): MediaContext[] {
+  const media: MediaContext[] = [];
+
+  console.log("🖼️ Extracting media from post...");
+
+  // === IMAGES ===
+  // LinkedIn image selectors
+  const imageSelectors = [
+    ".feed-shared-image__image",
+    ".feed-shared-image img",
+    ".update-components-image img",
+    ".ivm-image-view-model img",
+    '[data-test-id="feed-images-content"] img',
+    ".feed-shared-update-v2__content img",
+    ".update-components-image__image",
+    ".feed-shared-article__image img",
+    ".feed-shared-mini-update-v2__image img",
+    // Carousel images
+    ".feed-shared-carousel img",
+    ".carousel-card img",
+  ];
+
+  for (const selector of imageSelectors) {
+    const images = postContainer.querySelectorAll(selector);
+    images.forEach((img) => {
+      const imgElement = img as HTMLImageElement;
+      // Get the highest quality image URL
+      const url =
+        imgElement.dataset.src ||
+        imgElement.dataset.delayedUrl ||
+        imgElement.src;
+
+      if (
+        url &&
+        !url.includes("data:image") &&
+        !media.some((m) => m.url === url)
+      ) {
+        console.log(`✅ Found image: ${url.substring(0, 80)}...`);
+        media.push({
+          type: "image",
+          url: url,
+          altText: imgElement.alt || undefined,
+          title: imgElement.title || undefined,
+        });
+      }
+    });
+  }
+
+  // === VIDEOS ===
+  // LinkedIn video selectors
+  const videoSelectors = [
+    "video",
+    ".feed-shared-linkedin-video video",
+    ".update-components-linkedin-video video",
+    '[data-test-id="feed-video-content"] video',
+    ".video-js video",
+  ];
+
+  for (const selector of videoSelectors) {
+    const videos = postContainer.querySelectorAll(selector);
+    videos.forEach((video) => {
+      const videoElement = video as HTMLVideoElement;
+      const url =
+        videoElement.src ||
+        videoElement.currentSrc ||
+        videoElement.querySelector("source")?.src;
+
+      if (url && !media.some((m) => m.url === url)) {
+        console.log(`✅ Found video: ${url.substring(0, 80)}...`);
+        media.push({
+          type: "video",
+          url: url,
+          title:
+            videoElement.title ||
+            videoElement.getAttribute("aria-label") ||
+            undefined,
+        });
+      }
+    });
+  }
+
+  // Also check for video poster/thumbnail as fallback
+  const videoPosterSelectors = [
+    ".feed-shared-linkedin-video__poster",
+    ".video-js .vjs-poster",
+    '[data-test-id="video-poster"] img',
+    ".update-components-linkedin-video__poster img",
+  ];
+
+  for (const selector of videoPosterSelectors) {
+    const posters = postContainer.querySelectorAll(selector);
+    posters.forEach((poster) => {
+      const posterElement = poster as HTMLImageElement;
+      const url =
+        posterElement.style.backgroundImage?.match(
+          /url\(["']?(.+?)["']?\)/
+        )?.[1] || posterElement.src;
+
+      if (url && !media.some((m) => m.url === url)) {
+        console.log(`✅ Found video poster: ${url.substring(0, 80)}...`);
+        media.push({
+          type: "video",
+          url: url,
+          title: "Video thumbnail",
+        });
+      }
+    });
+  }
+
+  // === PDFs and DOCUMENTS ===
+  // LinkedIn document/PDF selectors
+  const documentSelectors = [
+    ".feed-shared-document",
+    ".update-components-document",
+    '[data-test-id="document-content"]',
+    ".feed-shared-external-video__meta", // Sometimes documents show here
+  ];
+
+  for (const selector of documentSelectors) {
+    const docs = postContainer.querySelectorAll(selector);
+    docs.forEach((doc) => {
+      // Try to find the document link or preview image
+      const link = doc.querySelector("a[href]") as HTMLAnchorElement;
+      const previewImg = doc.querySelector("img") as HTMLImageElement;
+      const titleElement = doc.querySelector(
+        ".feed-shared-document__title, .update-components-document__title"
+      );
+
+      if (link?.href) {
+        console.log(`✅ Found document link: ${link.href.substring(0, 80)}...`);
+        media.push({
+          type: "pdf",
+          url: link.href,
+          title: titleElement?.textContent?.trim() || link.title || undefined,
+        });
+      } else if (previewImg?.src) {
+        console.log(
+          `✅ Found document preview: ${previewImg.src.substring(0, 80)}...`
+        );
+        media.push({
+          type: "document",
+          url: previewImg.src,
+          title:
+            titleElement?.textContent?.trim() || previewImg.alt || undefined,
+        });
+      }
+    });
+  }
+
+  // === ARTICLE IMAGES (shared articles/links) ===
+  const articleSelectors = [
+    ".feed-shared-article",
+    ".update-components-article",
+    '[data-test-id="shared-article"]',
+  ];
+
+  for (const selector of articleSelectors) {
+    const articles = postContainer.querySelectorAll(selector);
+    articles.forEach((article) => {
+      const img = article.querySelector("img") as HTMLImageElement;
+      const titleElement = article.querySelector(
+        ".feed-shared-article__title, .update-components-article__title"
+      );
+
+      if (img?.src && !media.some((m) => m.url === img.src)) {
+        console.log(`✅ Found article image: ${img.src.substring(0, 80)}...`);
+        media.push({
+          type: "image",
+          url: img.src,
+          altText: img.alt || undefined,
+          title: titleElement?.textContent?.trim() || undefined,
+        });
+      }
+    });
+  }
+
+  console.log(`🖼️ Total media items found: ${media.length}`);
+  return media;
+}
+
+// Helper: Gather context from page (improved for LinkedIn) - Now includes media
+function gatherPageContext(targetInput: HTMLElement): string[] {
+  // This returns string[] for backward compatibility
+  // Use gatherFullPageContext for full media support
+  return gatherFullPageContext(targetInput).textContext;
+}
+
+// Helper: Gather FULL context including media from page
+function gatherFullPageContext(targetInput: HTMLElement): PageContext {
+  const textContext: string[] = [];
+  const mediaContext: MediaContext[] = [];
+
+  console.log("🔍 Gathering full context (text + media) for Gemini...");
 
   // Strategy 1: Find the closest post/article container from the input
   let postContainer = targetInput.closest(
@@ -183,10 +396,14 @@ function gatherPageContext(targetInput: HTMLElement): string[] {
           `✅ Found post text (${text.length} chars):`,
           text.substring(0, 100) + "..."
         );
-        context.push(text);
+        textContext.push(text);
         break;
       }
     }
+
+    // Extract media from post
+    const postMedia = extractMediaFromPost(postContainer);
+    mediaContext.push(...postMedia);
 
     // Get existing comments
     const commentSelectors = [
@@ -204,7 +421,7 @@ function gatherPageContext(targetInput: HTMLElement): string[] {
             // Only get last 3 comments
             const commentText = comment.textContent?.trim();
             if (commentText && commentText.length > 10) {
-              context.push(commentText);
+              textContext.push(commentText);
             }
           }
         });
@@ -214,7 +431,7 @@ function gatherPageContext(targetInput: HTMLElement): string[] {
   }
 
   // Strategy 2: If no container found, search the whole page
-  if (context.length === 0) {
+  if (textContext.length === 0 && mediaContext.length === 0) {
     console.log("⚠️ No post container found, searching entire page...");
 
     // Look for any visible post near the input
@@ -238,16 +455,25 @@ function gatherPageContext(targetInput: HTMLElement): string[] {
               "✅ Found nearby post text:",
               text.substring(0, 100) + "..."
             );
-            context.push(text);
-            break;
+            textContext.push(text);
           }
+        }
+
+        // Also extract media from nearby post
+        const postMedia = extractMediaFromPost(post);
+        mediaContext.push(...postMedia);
+
+        if (textContext.length > 0 || mediaContext.length > 0) {
+          break;
         }
       }
     }
   }
 
-  console.log(`📦 Total context items: ${context.length}`);
-  return context;
+  console.log(
+    `📦 Total context: ${textContext.length} text items, ${mediaContext.length} media items`
+  );
+  return { textContext, mediaContext };
 }
 
 // Helper: Show follow-up suggestion buttons
@@ -1091,6 +1317,7 @@ class InlineSuggestionManager {
     if (startNode) {
       replaceRange.setStart(startNode, startOffset);
       replaceRange.setEnd(range.endContainer, range.endOffset);
+
       replaceRange.deleteContents();
 
       const textNode = document.createTextNode(fullText);

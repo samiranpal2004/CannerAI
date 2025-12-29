@@ -428,20 +428,230 @@ def health_check():
 
 
 # ==================== Gemini AI Response Generation ====================
+
+def fetch_media_content(media_items: list, genai_module) -> list:
+    """Fetch media content from URLs and prepare for Gemini multimodal input.
+    
+    Args:
+        media_items: List of media objects with type, url, altText, title
+        genai_module: The google.generativeai module for uploading files
+        
+    Returns:
+        List of media objects ready for Gemini (PIL Images or uploaded file references)
+    """
+    import requests
+    from PIL import Image
+    from io import BytesIO
+    import tempfile
+    import os as os_module
+    
+    media_content = []
+    
+    for item in media_items[:5]:  # Limit to 5 media items to avoid token limits
+        try:
+            url = item.get("url", "")
+            media_type = item.get("type", "image")
+            
+            if not url or url.startswith("data:"):
+                continue
+                
+            logging.info(f"🖼️ Fetching {media_type}: {url[:80]}...")
+            
+            # Fetch the media
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "image/*, video/*, application/pdf, */*",
+                "Referer": "https://www.linkedin.com/"
+            }
+            
+            # For videos, use longer timeout and stream
+            timeout = 60 if media_type == "video" else 15
+            response = requests.get(url, headers=headers, timeout=timeout, stream=True)
+            response.raise_for_status()
+            
+            content_type = response.headers.get("Content-Type", "")
+            
+            if media_type == "image" or "image" in content_type:
+                # Load image using PIL
+                img = Image.open(BytesIO(response.content))
+                # Convert to RGB if necessary (for PNG with transparency)
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                # Resize if too large (max 1024px on longest side)
+                max_size = 1024
+                if max(img.size) > max_size:
+                    ratio = max_size / max(img.size)
+                    new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+                
+                media_content.append({
+                    "type": "image",
+                    "data": img,
+                    "description": item.get("altText") or item.get("title") or "Image from post"
+                })
+                logging.info(f"✅ Image loaded: {img.size}")
+                
+            elif media_type == "video" or "video" in content_type:
+                # Download video to temp file and upload to Gemini
+                logging.info(f"🎬 Downloading video for analysis...")
+                
+                # Get content length to check video size (limit to ~50MB)
+                content_length = int(response.headers.get("Content-Length", 0))
+                max_video_size = 50 * 1024 * 1024  # 50MB
+                
+                if content_length > max_video_size:
+                    logging.warning(f"⚠️ Video too large ({content_length / 1024 / 1024:.1f}MB), skipping")
+                    media_content.append({
+                        "type": "description",
+                        "description": f"Video attached (too large to analyze: {content_length / 1024 / 1024:.1f}MB)"
+                    })
+                    continue
+                
+                # Determine file extension from content type
+                ext = ".mp4"  # Default
+                if "webm" in content_type:
+                    ext = ".webm"
+                elif "mov" in content_type or "quicktime" in content_type:
+                    ext = ".mov"
+                elif "avi" in content_type:
+                    ext = ".avi"
+                
+                # Download to temp file
+                with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    total_downloaded = 0
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            tmp_file.write(chunk)
+                            total_downloaded += len(chunk)
+                            # Safety check - stop if exceeds limit
+                            if total_downloaded > max_video_size:
+                                break
+                
+                logging.info(f"✅ Video downloaded: {total_downloaded / 1024 / 1024:.2f}MB")
+                
+                try:
+                    # Upload video to Gemini Files API
+                    logging.info(f"📤 Uploading video to Gemini...")
+                    video_file = genai_module.upload_file(
+                        path=tmp_path,
+                        mime_type=content_type or "video/mp4"
+                    )
+                    
+                    # Wait for processing (Gemini needs to process the video)
+                    import time
+                    while video_file.state.name == "PROCESSING":
+                        logging.info("⏳ Waiting for video processing...")
+                        time.sleep(2)
+                        video_file = genai_module.get_file(video_file.name)
+                    
+                    if video_file.state.name == "ACTIVE":
+                        media_content.append({
+                            "type": "video",
+                            "data": video_file,  # Gemini file reference
+                            "description": item.get("title") or "Video from post"
+                        })
+                        logging.info(f"✅ Video uploaded and ready for analysis")
+                    else:
+                        logging.warning(f"⚠️ Video processing failed: {video_file.state.name}")
+                        media_content.append({
+                            "type": "description",
+                            "description": item.get("title") or "Video attached (processing failed)"
+                        })
+                        
+                except Exception as upload_error:
+                    logging.warning(f"⚠️ Video upload failed: {upload_error}")
+                    media_content.append({
+                        "type": "description",
+                        "description": item.get("title") or "Video attached"
+                    })
+                finally:
+                    # Clean up temp file
+                    try:
+                        os_module.unlink(tmp_path)
+                    except:
+                        pass
+                
+            elif media_type in ("pdf", "document"):
+                # For PDFs, try to upload to Gemini as well
+                logging.info(f"📄 Downloading document for analysis...")
+                
+                # Determine extension
+                ext = ".pdf"
+                if "doc" in content_type:
+                    ext = ".docx"
+                
+                with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    tmp_file.write(response.content)
+                
+                try:
+                    doc_file = genai_module.upload_file(
+                        path=tmp_path,
+                        mime_type=content_type or "application/pdf"
+                    )
+                    
+                    # Wait for processing
+                    import time
+                    while doc_file.state.name == "PROCESSING":
+                        logging.info("⏳ Waiting for document processing...")
+                        time.sleep(1)
+                        doc_file = genai_module.get_file(doc_file.name)
+                    
+                    if doc_file.state.name == "ACTIVE":
+                        media_content.append({
+                            "type": "document",
+                            "data": doc_file,
+                            "description": item.get("title") or "Document from post"
+                        })
+                        logging.info(f"✅ Document uploaded and ready for analysis")
+                    else:
+                        media_content.append({
+                            "type": "description",
+                            "description": item.get("title") or "Document attached"
+                        })
+                        
+                except Exception as upload_error:
+                    logging.warning(f"⚠️ Document upload failed: {upload_error}")
+                    media_content.append({
+                        "type": "description",
+                        "description": item.get("title") or "Document attached"
+                    })
+                finally:
+                    try:
+                        os_module.unlink(tmp_path)
+                    except:
+                        pass
+                
+        except Exception as e:
+            logging.warning(f"⚠️ Failed to fetch media {url[:50]}: {e}")
+            # Still include the description if available
+            if item.get("altText") or item.get("title"):
+                media_content.append({
+                    "type": "description",
+                    "description": item.get("altText") or item.get("title")
+                })
+    
+    return media_content
+
+
 @app.route("/api/generate", methods=["POST"])
 def generate_ai_response():
-    """Generate AI response using Gemini Flash-Lite"""
+    """Generate AI response using Gemini Flash with multimodal support"""
     import google.generativeai as genai
     
     try:
         data = request.json
         text = data.get("text", "")
         context = data.get("context", [])
-        response_type = data.get("type", "comment")  # "comment" or "dm"
+        media = data.get("media", [])  # NEW: Media items from frontend
+        response_type = data.get("type", "comment")
         
-        logging.info(f"📥 Generate request - Text: {len(text)} chars, Context items: {len(context)}")
+        logging.info(f"📥 Generate request - Text: {len(text)} chars, Context items: {len(context)}, Media items: {len(media)}")
         if context:
             logging.info(f"📄 First context item preview: {context[0][:100]}...")
+        if media:
+            logging.info(f"🖼️ Media types: {[m.get('type') for m in media]}")
         
         # Get API key from environment
         api_key = os.getenv("GEMINI_API_KEY")
@@ -450,20 +660,50 @@ def generate_ai_response():
         
         # Configure Gemini
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash-lite')
         
-        # Build better prompt
+        # Use gemini-2.0-flash for multimodal (supports images/video)
+        # Use gemini-1.5-flash as fallback for text-only (faster, cheaper)
+        # Valid models: gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro
+        model_name = 'gemini-2.0-flash' if media else 'gemini-1.5-flash'
+        model = genai.GenerativeModel(model_name)
+        logging.info(f"🤖 Using model: {model_name}")
+        
+        # Fetch and prepare media content (pass genai for video/doc uploads)
+        media_content = []
+        if media:
+            media_content = fetch_media_content(media, genai)
+            logging.info(f"🖼️ Prepared {len(media_content)} media items for Gemini")
+        
+        # Build multimodal prompt parts
+        prompt_parts = []
+        
+        # Build the text prompt
         if context and len(context) > 0:
-            # We have context - write a reply to the post
             post_content = context[0]
             existing_comments = context[1:4] if len(context) > 1 else []
             
-            prompt = f"""You are writing a thoughtful, engaging comment on a LinkedIn post.
+            # Add text prompt
+            text_prompt = f"""You are writing a thoughtful, engaging comment on a LinkedIn post.
 
-POST CONTENT:
+POST TEXT CONTENT:
 {post_content}
 
-{"EXISTING COMMENTS:" if existing_comments else ""}
+"""
+            # Add media descriptions to text prompt
+            if media_content:
+                text_prompt += "POST MEDIA/ATTACHMENTS:\n"
+                for i, mc in enumerate(media_content, 1):
+                    if mc["type"] == "description":
+                        text_prompt += f"- {mc['description']}\n"
+                    elif mc["type"] == "image":
+                        text_prompt += f"- [Image {i}] {mc.get('description', 'See attached image')}\n"
+                    elif mc["type"] == "video":
+                        text_prompt += f"- [Video] {mc.get('description', 'Video content attached')}\n"
+                    elif mc["type"] == "document":
+                        text_prompt += f"- [Document/PDF] {mc.get('description', 'Document attached')}\n"
+                text_prompt += "\n"
+            
+            text_prompt += f"""{"EXISTING COMMENTS:" if existing_comments else ""}
 {chr(10).join(f"- {c}" for c in existing_comments) if existing_comments else ""}
 
 {"USER'S DRAFT (optional):" + text if text else ""}
@@ -471,7 +711,10 @@ POST CONTENT:
 TASK:
 Write ONE natural, professional LinkedIn comment (2-3 sentences, max 40 words).
 - Be genuine and specific to THIS post
-- Show you read and understood it
+- Show you understood BOTH the text AND any images/videos/documents
+- If there's a VIDEO: mention specific scenes, actions, or key moments you observed
+- If there's an IMAGE: reference specific visual elements (colors, charts, infographics, people, etc.)
+- If there's a DOCUMENT/PDF: reference specific content or insights from it
 - Add value (insight, question, or encouragement)
 - Use casual professional tone
 - NO dashes, bullets, or "Great post!" generic phrases
@@ -481,8 +724,7 @@ Also provide 3 different variations as follow-up suggestions.
 Return ONLY this JSON format:
 {{"reply": "your specific comment here", "suggestions": [{{"label": "Ask question", "example": "question-based version"}}, {{"label": "Add insight", "example": "version with insight"}}, {{"label": "Shorter", "example": "brief version"}}]}}"""
         else:
-            # No context - just enhance what user typed
-            prompt = f"""You are improving a social media message.
+            text_prompt = f"""You are improving a social media message.
 
 USER'S TEXT: {text if text else "(empty - write something engaging)"}
 
@@ -493,10 +735,31 @@ Also provide 3 variation suggestions.
 Return ONLY this JSON:
 {{"reply": "improved message", "suggestions": [{{"label": "Friendlier", "example": "friendly version"}}, {{"label": "Professional", "example": "professional version"}}, {{"label": "Shorter", "example": "brief version"}}]}}"""
         
-        logging.info("🤖 Calling Gemini...")
+        # Build the content parts for Gemini
+        content_parts = []
         
-        # Call Gemini
-        response = model.generate_content(prompt)
+        # Add media files first (Gemini prefers media before text)
+        for mc in media_content:
+            if mc["type"] == "image" and "data" in mc:
+                content_parts.append(mc["data"])  # PIL Image object
+            elif mc["type"] == "video" and "data" in mc:
+                content_parts.append(mc["data"])  # Gemini uploaded file reference
+            elif mc["type"] == "document" and "data" in mc:
+                content_parts.append(mc["data"])  # Gemini uploaded file reference
+        
+        # Add the text prompt
+        content_parts.append(text_prompt)
+        
+        logging.info(f"🤖 Calling Gemini with {len(content_parts)} content parts (media + text)...")
+        
+        # Call Gemini with multimodal content
+        if len(content_parts) > 1:
+            # Multimodal request (images + text)
+            response = model.generate_content(content_parts)
+        else:
+            # Text-only request
+            response = model.generate_content(text_prompt)
+        
         response_text = response.text.strip()
         
         logging.info(f"✅ Gemini response received: {len(response_text)} chars")
@@ -518,6 +781,8 @@ Return ONLY this JSON:
         
     except Exception as e:
         logging.error(f"❌ Gemini API error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
