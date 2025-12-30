@@ -595,9 +595,9 @@ async function createResponsePopup(
   // Get button position RELATIVE TO VIEWPORT
   const buttonRect = buttonElement.getBoundingClientRect();
 
-  // Popup dimensions
-  const popupHeight = 500;
-  const popupWidth = 420; // Match showResponseMenu width
+  // Popup dimensions - sleeker compact size
+  const popupHeight = 460;
+  const popupWidth = 380;
   const gap = 10;
 
   // FORCE ABOVE - no conditions
@@ -628,44 +628,21 @@ async function createResponsePopup(
   // Use the HTML structure from showResponseMenu
   popup.innerHTML = `
     <div class="sh-menu-header">
-      <div class="sh-menu-header-content">
-        <div class="sh-menu-brand">
-          <div class="sh-menu-logo">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor" opacity="0.9"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <div class="sh-menu-title">
-            <h3>Quick Responses</h3>
-            <p class="sh-menu-subtitle">Loading responses...</p>
-          </div>
-        </div>
-        <div class="sh-menu-actions">
-          <button class="sh-theme-toggle" aria-label="Toggle dark mode">
-            ${
-              isDarkMode
-                ? `
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="5"/>
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-              </svg>
-            `
-                : `
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              </svg>
-            `
-            }
-          </button>
-          <button class="cannerai-close-btn" style="margin-left: 8px; background: transparent; border: none; color: inherit; cursor: pointer;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
+      <div class="sh-menu-title-section">
+        <h3 class="sh-menu-title">Quick Responses</h3>
+        <span class="sh-menu-subtitle">Loading...</span>
+      </div>
+      <div class="sh-header-controls">
+        <button class="sh-theme-toggle" aria-label="Toggle theme">
+          ${
+            isDarkMode
+              ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`
+              : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+          }
+        </button>
+        <button class="sh-close-btn" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
       </div>
     </div>
   `;
@@ -687,12 +664,12 @@ async function createResponsePopup(
     await chrome.storage.sync.set({ theme: currentTheme });
     themeToggle.innerHTML =
       currentTheme === "dark"
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
   });
 
   // Close button
-  const closeBtn = popup.querySelector(".cannerai-close-btn");
+  const closeBtn = popup.querySelector(".sh-close-btn");
   closeBtn?.addEventListener("click", () => {
     popup.remove();
     buttonElement.classList.remove("active");
@@ -712,11 +689,8 @@ async function createResponsePopup(
     const searchContainer = document.createElement("div");
     searchContainer.className = "sh-search-container";
     searchContainer.innerHTML = `
-      <svg class="sh-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="m21 21-4.35-4.35"/>
-      </svg>
-      <input class="sh-search" type="text" placeholder="Search by title, content, or tags..." ${
+      
+      <input class="sh-search" type="text" placeholder="Search by title, content..." ${
         responses.length === 0 ? "disabled" : ""
       }>
       <button class="sh-search-clear" style="display: none;">
@@ -749,38 +723,29 @@ async function createResponsePopup(
         item.className = "sh-menu-item";
         item.setAttribute("data-id", response.id);
 
-        const tags = Array.isArray(response.tags) ? response.tags : [];
-        const tagElements = tags
-          .slice(0, 2)
-          .map((tag: string) => `<span class="sh-tag">${tag}</span>`)
-          .join("");
-        const moreTags =
-          tags.length > 2
-            ? `<span class="sh-tag-more">+${tags.length - 2}</span>`
-            : "";
-
         item.innerHTML = `
-          <div class="sh-item-header">
+          <div class="sh-item-row">
             <h4 class="sh-item-title">${response.title}</h4>
-            <div class="sh-item-tags">${tagElements}${moreTags}</div>
+            <div class="sh-item-actions">
+              <button class="sh-btn-icon sh-btn-insert" data-content="${response.content.replace(
+                /"/g,
+                "&quot;"
+              )}" title="Insert">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button class="sh-btn-icon sh-btn-edit" data-id="${
+                response.id
+              }" title="Edit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="sh-btn-icon sh-btn-delete" data-id="${
+                response.id
+              }" title="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
           </div>
           <p class="sh-item-preview">${response.content}</p>
-          <div class="sh-item-actions">
-            <button class="sh-btn-action sh-btn-insert" data-content="${response.content.replace(
-              /"/g,
-              "&quot;"
-            )}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg> Insert
-            </button>
-            <button class="sh-btn-action sh-btn-edit" data-id="${response.id}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/><path d="M14.06 4.94l3.75 3.75"/></svg> Edit
-            </button>
-            <button class="sh-btn-action sh-btn-delete" data-id="${
-              response.id
-            }">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete
-            </button>
-          </div>
         `;
         menuItems.appendChild(item);
       });
