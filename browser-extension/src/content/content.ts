@@ -499,6 +499,7 @@ function showFollowUpSuggestions(
     flex-wrap: wrap;
     z-index: 9999;
     padding: 8px;
+    padding-top: 20px;
     background: rgba(255, 255, 255, 0.95);
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
@@ -540,14 +541,22 @@ function showFollowUpSuggestions(
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "✕";
   closeBtn.style.cssText = `
-    padding: 6px 10px;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 2px 5px;
     background: #666;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 50%;
     cursor: pointer;
-    font-size: 12px;
-    margin-left: auto;
+    font-size: 9px;
+    line-height: 1;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   `;
   closeBtn.addEventListener("click", () => container.remove());
   container.appendChild(closeBtn);
