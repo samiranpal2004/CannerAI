@@ -491,7 +491,7 @@ function showFollowUpSuggestions(
   container.className = "gemini-suggestions";
   container.style.cssText = `
     position: absolute;
-    bottom: 40px;
+    bottom: 70px;
     left: 10px;
     right: 10px;
     display: flex;
@@ -510,7 +510,7 @@ function showFollowUpSuggestions(
     btn.className = "gemini-suggestion-btn";
     btn.style.cssText = `
       padding: 6px 12px;
-      background: #0a66c2;
+      background: #1a1e22ff;
       color: white;
       border: none;
       border-radius: 6px;
@@ -521,11 +521,11 @@ function showFollowUpSuggestions(
     `;
 
     btn.addEventListener("mouseenter", () => {
-      btn.style.background = "#004182";
+      btn.style.background = "#000000ff";
     });
 
     btn.addEventListener("mouseleave", () => {
-      btn.style.background = "#0a66c2";
+      btn.style.background = "#1a1e22ff";
     });
 
     btn.addEventListener("click", () => {
