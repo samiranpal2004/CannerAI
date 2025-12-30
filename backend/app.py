@@ -428,20 +428,100 @@ def health_check():
 
 
 # ==================== Gemini AI Response Generation ====================
+
+def fetch_media_content(media_items: list, genai_module) -> list:
+    """Fetch media content from URLs and prepare for Gemini multimodal input.
+    
+    Args:
+        media_items: List of media objects with type, url, altText, title
+        genai_module: The google.generativeai module for uploading files
+        
+    Returns:
+        List of media objects ready for Gemini (PIL Images only - videos and documents are skipped)
+    """
+    import requests
+    from PIL import Image
+    from io import BytesIO
+    
+    media_content = []
+    
+    # Filter to only process images - skip videos and documents
+    image_items = [item for item in media_items if item.get("type") == "image"]
+    
+    for item in image_items[:5]:  # Limit to 5 images to avoid token limits
+        try:
+            url = item.get("url", "")
+            media_type = item.get("type", "image")
+            
+            if not url or url.startswith("data:"):
+                continue
+                
+            logging.info(f"🖼️ Fetching {media_type}: {url[:80]}...")
+            
+            # Fetch the image
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "image/*",
+                "Referer": "https://www.linkedin.com/"
+            }
+            
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            content_type = response.headers.get("Content-Type", "")
+            
+            # Only process images
+            if "image" in content_type or media_type == "image":
+                # Load image using PIL
+                img = Image.open(BytesIO(response.content))
+                # Convert to RGB if necessary (for PNG with transparency)
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                # Resize if too large (max 1024px on longest side)
+                max_size = 1024
+                if max(img.size) > max_size:
+                    ratio = max_size / max(img.size)
+                    new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+                
+                media_content.append({
+                    "type": "image",
+                    "data": img,
+                    "description": item.get("altText") or item.get("title") or "Image from post"
+                })
+                logging.info(f"✅ Image loaded: {img.size}")
+            else:
+                logging.info(f"⏭️ Skipping non-image media type: {content_type}")
+                
+        except Exception as e:
+            logging.warning(f"⚠️ Failed to fetch image {url[:50]}: {e}")
+            # Still include the description if available
+            if item.get("altText") or item.get("title"):
+                media_content.append({
+                    "type": "description",
+                    "description": item.get("altText") or item.get("title")
+                })
+    
+    return media_content
+
+
 @app.route("/api/generate", methods=["POST"])
 def generate_ai_response():
-    """Generate AI response using Gemini Flash-Lite"""
+    """Generate AI response using Gemini Flash with multimodal support"""
     import google.generativeai as genai
     
     try:
         data = request.json
         text = data.get("text", "")
         context = data.get("context", [])
-        response_type = data.get("type", "comment")  # "comment" or "dm"
+        media = data.get("media", [])  # NEW: Media items from frontend
+        response_type = data.get("type", "comment")
         
-        logging.info(f"📥 Generate request - Text: {len(text)} chars, Context items: {len(context)}")
+        logging.info(f"📥 Generate request - Text: {len(text)} chars, Context items: {len(context)}, Media items: {len(media)}")
         if context:
             logging.info(f"📄 First context item preview: {context[0][:100]}...")
+        if media:
+            logging.info(f"🖼️ Media types: {[m.get('type') for m in media]}")
         
         # Get API key from environment
         api_key = os.getenv("GEMINI_API_KEY")
@@ -450,20 +530,48 @@ def generate_ai_response():
         
         # Configure Gemini
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash-lite')
         
-        # Build better prompt
+        # Filter media to only include images (skip videos and documents)
+        images_only = [m for m in media if m.get("type") == "image"] if media else []
+        
+        # Use gemini-2.0-flash for multimodal (supports images)
+        # Use gemini-1.5-flash for text-only (faster, cheaper)
+        model_name = 'gemini-2.0-flash' if images_only else 'gemini-1.5-flash'
+        model = genai.GenerativeModel(model_name)
+        logging.info(f"🤖 Using model: {model_name}")
+        
+        # Fetch and prepare image content only (videos and documents are skipped)
+        media_content = []
+        if images_only:
+            media_content = fetch_media_content(images_only, genai)
+            logging.info(f"🖼️ Prepared {len(media_content)} images for Gemini")
+        
+        # Build multimodal prompt parts
+        prompt_parts = []
+        
+        # Build the text prompt
         if context and len(context) > 0:
-            # We have context - write a reply to the post
             post_content = context[0]
             existing_comments = context[1:4] if len(context) > 1 else []
             
-            prompt = f"""You are writing a thoughtful, engaging comment on a LinkedIn post.
+            # Add text prompt
+            text_prompt = f"""You are writing a thoughtful, engaging comment on a LinkedIn post.
 
-POST CONTENT:
+POST TEXT CONTENT:
 {post_content}
 
-{"EXISTING COMMENTS:" if existing_comments else ""}
+"""
+            # Add image descriptions to text prompt
+            if media_content:
+                text_prompt += "POST IMAGES:\n"
+                for i, mc in enumerate(media_content, 1):
+                    if mc["type"] == "description":
+                        text_prompt += f"- {mc['description']}\n"
+                    elif mc["type"] == "image":
+                        text_prompt += f"- [Image {i}] {mc.get('description', 'See attached image')}\n"
+                text_prompt += "\n"
+            
+            text_prompt += f"""{"EXISTING COMMENTS:" if existing_comments else ""}
 {chr(10).join(f"- {c}" for c in existing_comments) if existing_comments else ""}
 
 {"USER'S DRAFT (optional):" + text if text else ""}
@@ -471,32 +579,53 @@ POST CONTENT:
 TASK:
 Write ONE natural, professional LinkedIn comment (2-3 sentences, max 40 words).
 - Be genuine and specific to THIS post
-- Show you read and understood it
+- Show you understood the text content
+- If there are IMAGES: reference specific visual elements (colors, charts, infographics, people, etc.)
 - Add value (insight, question, or encouragement)
 - Use casual professional tone
 - NO dashes, bullets, or "Great post!" generic phrases
 
-Also provide 3 different variations as follow-up suggestions.
+Also provide 4 different variations as follow-up suggestions:
+- First 2 suggestions: DYNAMIC labels based on post theme (e.g., "Add question", "More supportive", "Technical angle", "Personal touch", "Add emoji", "More formal", "Congratulate", "Share experience", etc.)
+- Last 2 suggestions: STATIC labels "Shorter" and "Longer"
 
 Return ONLY this JSON format:
-{{"reply": "your specific comment here", "suggestions": [{{"label": "Ask question", "example": "question-based version"}}, {{"label": "Add insight", "example": "version with insight"}}, {{"label": "Shorter", "example": "brief version"}}]}}"""
+{{"reply": "your specific comment here", "suggestions": [{{"label": "<dynamic label based on post>", "example": "variation 1"}}, {{"label": "<dynamic label based on post>", "example": "variation 2"}}, {{"label": "Shorter", "example": "shorter version (15-20 words)"}}, {{"label": "Longer", "example": "longer version (50-60 words)"}}]}}"""
         else:
-            # No context - just enhance what user typed
-            prompt = f"""You are improving a social media message.
+            text_prompt = f"""You are improving a social media message.
 
 USER'S TEXT: {text if text else "(empty - write something engaging)"}
 
 TASK:
 Write a short, natural, engaging message (max 40 words).
-Also provide 3 variation suggestions.
+Also provide 4 variation suggestions:
+- First 2: DYNAMIC labels (e.g., "Add emoji", "More casual", "Add question", "Enthusiastic", etc.)
+- Last 2: STATIC labels "Shorter" and "Longer"
 
 Return ONLY this JSON:
-{{"reply": "improved message", "suggestions": [{{"label": "Friendlier", "example": "friendly version"}}, {{"label": "Professional", "example": "professional version"}}, {{"label": "Shorter", "example": "brief version"}}]}}"""
+{{"reply": "improved message", "suggestions": [{{"label": "<dynamic>", "example": "variation 1"}}, {{"label": "<dynamic>", "example": "variation 2"}}, {{"label": "Shorter", "example": "shorter version"}}, {{"label": "Longer", "example": "longer version"}}]}}"""
         
-        logging.info("🤖 Calling Gemini...")
+        # Build the content parts for Gemini
+        content_parts = []
         
-        # Call Gemini
-        response = model.generate_content(prompt)
+        # Add images first (Gemini prefers media before text)
+        for mc in media_content:
+            if mc["type"] == "image" and "data" in mc:
+                content_parts.append(mc["data"])  # PIL Image object
+        
+        # Add the text prompt
+        content_parts.append(text_prompt)
+        
+        logging.info(f"🤖 Calling Gemini with {len(content_parts)} content parts (media + text)...")
+        
+        # Call Gemini with multimodal content
+        if len(content_parts) > 1:
+            # Multimodal request (images + text)
+            response = model.generate_content(content_parts)
+        else:
+            # Text-only request
+            response = model.generate_content(text_prompt)
+        
         response_text = response.text.strip()
         
         logging.info(f"✅ Gemini response received: {len(response_text)} chars")
@@ -518,6 +647,8 @@ Return ONLY this JSON:
         
     except Exception as e:
         logging.error(f"❌ Gemini API error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
