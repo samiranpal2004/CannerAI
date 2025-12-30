@@ -1651,14 +1651,19 @@ function positionPenButton(
   penButton.style.marginRight = "0";
 
   // Try to find native icon toolbar to align with it
-  const nativeIcons = container.querySelector('[class*="icons"], [class*="toolbar"], [class*="actions"]');
+  const nativeIcons = container.querySelector(
+    '[class*="icons"], [class*="toolbar"], [class*="actions"]'
+  );
   let bottomOffset = -4; // Default bottom offset
-  
+
   // For LinkedIn comment boxes, align with the emoji/media buttons row
   if (nativeIcons) {
     const nativeRect = nativeIcons.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    bottomOffset = containerRect.bottom - nativeRect.bottom + (nativeRect.height - buttonSize) / 2;
+    bottomOffset =
+      containerRect.bottom -
+      nativeRect.bottom +
+      (nativeRect.height - buttonSize) / 2;
   }
 
   // Calculate right offset based on input padding to position next to native icons
