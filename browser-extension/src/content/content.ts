@@ -1639,28 +1639,38 @@ function positionPenButton(
     container.appendChild(penButton);
   }
 
-  // Style button
-  const buttonSize = 32;
-  const padding = 2;
-  const bottomOffset = -4; // Shift down to align with input text area
+  // Style button - smaller size to match native icons
+  const buttonSize = 24;
+  const gap = 8; // Gap between icons (consistent with native spacing)
 
   penButton.style.position = "absolute";
   penButton.style.width = `${buttonSize}px`;
   penButton.style.height = `${buttonSize}px`;
-  penButton.style.zIndex = "10000";
+  penButton.style.zIndex = "1"; // Lower z-index to not float above
   penButton.style.marginBottom = "0";
   penButton.style.marginRight = "0";
 
-  // Calculate right offset based on input padding to avoid overlapping native icons
-  // If the input has large right padding (usually for icons), we position to the left of that padding
+  // Try to find native icon toolbar to align with it
+  const nativeIcons = container.querySelector('[class*="icons"], [class*="toolbar"], [class*="actions"]');
+  let bottomOffset = -4; // Default bottom offset
+  
+  // For LinkedIn comment boxes, align with the emoji/media buttons row
+  if (nativeIcons) {
+    const nativeRect = nativeIcons.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    bottomOffset = containerRect.bottom - nativeRect.bottom + (nativeRect.height - buttonSize) / 2;
+  }
+
+  // Calculate right offset based on input padding to position next to native icons
+  // Find existing icons/buttons in the container to align with them
   const inputStyle = window.getComputedStyle(inputElement);
   const paddingRight = parseFloat(inputStyle.paddingRight) || 0;
-  const rightOffset = paddingRight > 20 ? paddingRight + 2 : padding;
+  const rightOffset = paddingRight > 20 ? paddingRight + gap : gap;
 
-  // Anchor to bottom-right
+  // Anchor to bottom-right, aligned with other icons
   penButton.style.top = "auto";
   penButton.style.left = "auto";
-  penButton.style.bottom = `${bottomOffset}px`;
+  penButton.style.bottom = `${bottomOffset}px`; // Align with native icon row
   penButton.style.right = `${rightOffset}px`;
   let isVisible = false;
 
