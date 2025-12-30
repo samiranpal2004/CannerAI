@@ -585,10 +585,12 @@ Write ONE natural, professional LinkedIn comment (2-3 sentences, max 40 words).
 - Use casual professional tone
 - NO dashes, bullets, or "Great post!" generic phrases
 
-Also provide 3 different variations as follow-up suggestions.
+Also provide 4 different variations as follow-up suggestions:
+- First 2 suggestions: DYNAMIC labels based on post theme (e.g., "Add question", "More supportive", "Technical angle", "Personal touch", "Add emoji", "More formal", "Congratulate", "Share experience", etc.)
+- Last 2 suggestions: STATIC labels "Shorter" and "Longer"
 
 Return ONLY this JSON format:
-{{"reply": "your specific comment here", "suggestions": [{{"label": "Ask question", "example": "question-based version"}}, {{"label": "Add insight", "example": "version with insight"}}, {{"label": "Shorter", "example": "brief version"}}]}}"""
+{{"reply": "your specific comment here", "suggestions": [{{"label": "<dynamic label based on post>", "example": "variation 1"}}, {{"label": "<dynamic label based on post>", "example": "variation 2"}}, {{"label": "Shorter", "example": "shorter version (15-20 words)"}}, {{"label": "Longer", "example": "longer version (50-60 words)"}}]}}"""
         else:
             text_prompt = f"""You are improving a social media message.
 
@@ -596,10 +598,12 @@ USER'S TEXT: {text if text else "(empty - write something engaging)"}
 
 TASK:
 Write a short, natural, engaging message (max 40 words).
-Also provide 3 variation suggestions.
+Also provide 4 variation suggestions:
+- First 2: DYNAMIC labels (e.g., "Add emoji", "More casual", "Add question", "Enthusiastic", etc.)
+- Last 2: STATIC labels "Shorter" and "Longer"
 
 Return ONLY this JSON:
-{{"reply": "improved message", "suggestions": [{{"label": "Friendlier", "example": "friendly version"}}, {{"label": "Professional", "example": "professional version"}}, {{"label": "Shorter", "example": "brief version"}}]}}"""
+{{"reply": "improved message", "suggestions": [{{"label": "<dynamic>", "example": "variation 1"}}, {{"label": "<dynamic>", "example": "variation 2"}}, {{"label": "Shorter", "example": "shorter version"}}, {{"label": "Longer", "example": "longer version"}}]}}"""
         
         # Build the content parts for Gemini
         content_parts = []
