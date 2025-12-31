@@ -14,6 +14,52 @@ const CONFIG = {
 // helps to track the last focused input
 let lastFocusedInput: HTMLElement | null = null;
 
+// Detect if LinkedIn is in dark mode
+function detectLinkedInDarkMode(): boolean {
+  // Check for LinkedIn's dark theme classes on html/body
+  const html = document.documentElement;
+  const body = document.body;
+
+  // LinkedIn uses 'theme--dark' or similar classes
+  const hasThemeDarkClass =
+    html.classList.contains("theme--dark") ||
+    body.classList.contains("theme--dark") ||
+    html.getAttribute("data-theme") === "dark" ||
+    body.getAttribute("data-theme") === "dark";
+
+  if (hasThemeDarkClass) return true;
+
+  // Check LinkedIn's artdeco theme system
+  const hasArtDecoDark =
+    document.querySelector(".artdeco-theme--dark") !== null ||
+    document.querySelector('[class*="theme--dark"]') !== null;
+
+  if (hasArtDecoDark) return true;
+
+  // Check computed background color of body (LinkedIn dark mode has dark background)
+  const bodyBgColor = window.getComputedStyle(body).backgroundColor;
+  if (bodyBgColor) {
+    // Parse RGB values
+    const match = bodyBgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const [, r, g, b] = match.map(Number);
+      // If background is dark (luminance < 50), it's dark mode
+      const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (luminance < 50) return true;
+    }
+  }
+
+  // Check for CSS custom property indicating dark theme
+  const rootStyles = getComputedStyle(document.documentElement);
+  const bgColor =
+    rootStyles.getPropertyValue("--background-color") ||
+    rootStyles.getPropertyValue("--color-background");
+  if ((bgColor && bgColor.includes("#1")) || bgColor?.includes("#0"))
+    return true;
+
+  return false;
+}
+
 // Make popup draggable by header
 function makeDraggable(popup: HTMLElement) {
   const header = popup.querySelector(".sh-menu-header") as HTMLElement;
@@ -592,9 +638,18 @@ async function createResponsePopup(
   // Add active class to the current button to keep it visible
   buttonElement.classList.add("active");
 
-  // Load theme preference
-  const result = await chrome.storage.sync.get(["theme"]);
-  const isDarkMode = result.theme === "dark";
+  // Detect LinkedIn's dark mode for theme
+  const isLinkedIn = window.location.hostname.includes("linkedin");
+  let isDarkMode = false;
+
+  if (isLinkedIn) {
+    // Use LinkedIn's actual theme
+    isDarkMode = detectLinkedInDarkMode();
+  } else {
+    // Fallback to stored preference for other platforms
+    const result = await chrome.storage.sync.get(["theme"]);
+    isDarkMode = result.theme === "dark";
+  }
 
   // Create popup container with social-helper-menu class to reuse styles
   const popup = document.createElement("div");
@@ -667,14 +722,22 @@ async function createResponsePopup(
   ) as HTMLButtonElement;
   let currentTheme = isDarkMode ? "dark" : "light";
 
+  // On LinkedIn, hide the theme toggle button since theme follows LinkedIn
+  if (isLinkedIn && themeToggle) {
+    themeToggle.style.display = "none";
+  }
+
   themeToggle?.addEventListener("click", async () => {
-    currentTheme = currentTheme === "dark" ? "light" : "dark";
-    popup.setAttribute("data-theme", currentTheme);
-    await chrome.storage.sync.set({ theme: currentTheme });
-    themeToggle.innerHTML =
-      currentTheme === "dark"
-        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`
-        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    // Only allow manual theme toggle on non-LinkedIn platforms
+    if (!isLinkedIn) {
+      currentTheme = currentTheme === "dark" ? "light" : "dark";
+      popup.setAttribute("data-theme", currentTheme);
+      await chrome.storage.sync.set({ theme: currentTheme });
+      themeToggle.innerHTML =
+        currentTheme === "dark"
+          ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`
+          : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    }
   });
 
   // Close button
@@ -1381,6 +1444,50 @@ function init() {
 
   // Add text selection handler
   addTextSelectionHandler();
+
+  // Watch for LinkedIn theme changes
+  if (window.location.hostname.includes("linkedin")) {
+    observeLinkedInThemeChanges();
+  }
+}
+
+// Observe LinkedIn theme changes and update pen buttons/popups accordingly
+function observeLinkedInThemeChanges() {
+  let lastTheme = detectLinkedInDarkMode() ? "dark" : "light";
+
+  const updateAllThemes = (newTheme: string) => {
+    // Update all pen buttons
+    document
+      .querySelectorAll(".social-helper-pen[data-platform='linkedin']")
+      .forEach((btn) => {
+        btn.setAttribute("data-theme", newTheme);
+      });
+    // Update popup if open
+    const popup = document.querySelector(".social-helper-menu");
+    if (popup) {
+      popup.setAttribute("data-theme", newTheme);
+    }
+  };
+
+  // Observe changes to html and body class/attributes for theme changes
+  const observer = new MutationObserver(() => {
+    const currentTheme = detectLinkedInDarkMode() ? "dark" : "light";
+    if (currentTheme !== lastTheme) {
+      console.log("Social Helper: LinkedIn theme changed to", currentTheme);
+      lastTheme = currentTheme;
+      updateAllThemes(currentTheme);
+    }
+  });
+
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class", "data-theme", "style"],
+  });
+
+  observer.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["class", "data-theme", "style"],
+  });
 }
 
 // Add helper buttons to all social media input boxes
@@ -1553,6 +1660,12 @@ function createPenButton(targetBox: HTMLElement): HTMLElement {
 
   if (isLinkedIn) {
     penContainer.setAttribute("data-platform", "linkedin");
+    // Detect and apply LinkedIn's dark mode theme
+    const linkedInDarkMode = detectLinkedInDarkMode();
+    penContainer.setAttribute(
+      "data-theme",
+      linkedInDarkMode ? "dark" : "light"
+    );
   } else if (isTwitter) {
     penContainer.setAttribute("data-platform", "twitter");
   }

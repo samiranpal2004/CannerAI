@@ -83,6 +83,57 @@ body[class*="linkedin"] .social-helper-pen:hover,
   background: rgba(29, 161, 242, 0.1);
 }
 
+/* ===== PEN BUTTON DARK MODE STYLES (LinkedIn) ===== */
+.social-helper-pen[data-theme="dark"] {
+  background: transparent;
+}
+
+.social-helper-pen[data-theme="dark"]:hover,
+.social-helper-pen[data-theme="dark"].pen-hover,
+.social-helper-pen[data-theme="dark"].active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.social-helper-pen[data-theme="dark"][data-platform="linkedin"]:hover {
+  background: rgba(112, 181, 249, 0.15);
+}
+
+.social-helper-pen[data-theme="dark"] .pen-icon {
+  color: #70b5f9;
+}
+
+.social-helper-pen[data-theme="dark"]:hover .pen-icon,
+.social-helper-pen[data-theme="dark"].pen-hover .pen-icon {
+  color: #9cccfc;
+}
+
+.social-helper-pen[data-theme="dark"] .pen-tooltip {
+  background: rgba(255, 255, 255, 0.95);
+  color: #1a1a1a;
+}
+
+.social-helper-pen[data-theme="dark"] .pen-tooltip::after {
+  border-top-color: rgba(255, 255, 255, 0.95);
+}
+
+.social-helper-pen[data-theme="dark"] .pen-menu {
+  background: rgba(30, 30, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.social-helper-pen[data-theme="dark"] .pen-menu-item {
+  color: #e0e0e0;
+}
+
+.social-helper-pen[data-theme="dark"] .pen-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.social-helper-pen[data-theme="dark"]:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
 .pen-icon {
   position: absolute;
   right: 0;
