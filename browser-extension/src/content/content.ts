@@ -14,6 +14,52 @@ const CONFIG = {
 // helps to track the last focused input
 let lastFocusedInput: HTMLElement | null = null;
 
+// Detect if LinkedIn is in dark mode
+function detectLinkedInDarkMode(): boolean {
+  // Check for LinkedIn's dark theme classes on html/body
+  const html = document.documentElement;
+  const body = document.body;
+
+  // LinkedIn uses 'theme--dark' or similar classes
+  const hasThemeDarkClass =
+    html.classList.contains("theme--dark") ||
+    body.classList.contains("theme--dark") ||
+    html.getAttribute("data-theme") === "dark" ||
+    body.getAttribute("data-theme") === "dark";
+
+  if (hasThemeDarkClass) return true;
+
+  // Check LinkedIn's artdeco theme system
+  const hasArtDecoDark =
+    document.querySelector(".artdeco-theme--dark") !== null ||
+    document.querySelector('[class*="theme--dark"]') !== null;
+
+  if (hasArtDecoDark) return true;
+
+  // Check computed background color of body (LinkedIn dark mode has dark background)
+  const bodyBgColor = window.getComputedStyle(body).backgroundColor;
+  if (bodyBgColor) {
+    // Parse RGB values
+    const match = bodyBgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (match) {
+      const [, r, g, b] = match.map(Number);
+      // If background is dark (luminance < 50), it's dark mode
+      const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (luminance < 50) return true;
+    }
+  }
+
+  // Check for CSS custom property indicating dark theme
+  const rootStyles = getComputedStyle(document.documentElement);
+  const bgColor =
+    rootStyles.getPropertyValue("--background-color") ||
+    rootStyles.getPropertyValue("--color-background");
+  if ((bgColor && bgColor.includes("#1")) || bgColor?.includes("#0"))
+    return true;
+
+  return false;
+}
+
 // Make popup draggable by header
 function makeDraggable(popup: HTMLElement) {
   const header = popup.querySelector(".sh-menu-header") as HTMLElement;
@@ -499,6 +545,7 @@ function showFollowUpSuggestions(
     flex-wrap: wrap;
     z-index: 9999;
     padding: 8px;
+    padding-top: 20px;
     background: rgba(255, 255, 255, 0.95);
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
@@ -540,14 +587,22 @@ function showFollowUpSuggestions(
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "✕";
   closeBtn.style.cssText = `
-    padding: 6px 10px;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 2px 5px;
     background: #666;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 50%;
     cursor: pointer;
-    font-size: 12px;
-    margin-left: auto;
+    font-size: 9px;
+    line-height: 1;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   `;
   closeBtn.addEventListener("click", () => container.remove());
   container.appendChild(closeBtn);
@@ -583,9 +638,18 @@ async function createResponsePopup(
   // Add active class to the current button to keep it visible
   buttonElement.classList.add("active");
 
-  // Load theme preference
-  const result = await chrome.storage.sync.get(["theme"]);
-  const isDarkMode = result.theme === "dark";
+  // Detect LinkedIn's dark mode for theme
+  const isLinkedIn = window.location.hostname.includes("linkedin");
+  let isDarkMode = false;
+
+  if (isLinkedIn) {
+    // Use LinkedIn's actual theme
+    isDarkMode = detectLinkedInDarkMode();
+  } else {
+    // Fallback to stored preference for other platforms
+    const result = await chrome.storage.sync.get(["theme"]);
+    isDarkMode = result.theme === "dark";
+  }
 
   // Create popup container with social-helper-menu class to reuse styles
   const popup = document.createElement("div");
@@ -595,9 +659,9 @@ async function createResponsePopup(
   // Get button position RELATIVE TO VIEWPORT
   const buttonRect = buttonElement.getBoundingClientRect();
 
-  // Popup dimensions
-  const popupHeight = 500;
-  const popupWidth = 420; // Match showResponseMenu width
+  // Popup dimensions - sleeker compact size
+  const popupHeight = 460;
+  const popupWidth = 380;
   const gap = 10;
 
   // FORCE ABOVE - no conditions
@@ -628,44 +692,21 @@ async function createResponsePopup(
   // Use the HTML structure from showResponseMenu
   popup.innerHTML = `
     <div class="sh-menu-header">
-      <div class="sh-menu-header-content">
-        <div class="sh-menu-brand">
-          <div class="sh-menu-logo">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor" opacity="0.9"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </div>
-          <div class="sh-menu-title">
-            <h3>Quick Responses</h3>
-            <p class="sh-menu-subtitle">Loading responses...</p>
-          </div>
-        </div>
-        <div class="sh-menu-actions">
-          <button class="sh-theme-toggle" aria-label="Toggle dark mode">
-            ${
-              isDarkMode
-                ? `
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="5"/>
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-              </svg>
-            `
-                : `
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              </svg>
-            `
-            }
-          </button>
-          <button class="cannerai-close-btn" style="margin-left: 8px; background: transparent; border: none; color: inherit; cursor: pointer;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
+      <div class="sh-menu-title-section">
+        <h3 class="sh-menu-title">Quick Responses</h3>
+        <span class="sh-menu-subtitle">Loading...</span>
+      </div>
+      <div class="sh-header-controls">
+        <button class="sh-theme-toggle" aria-label="Toggle theme">
+          ${
+            isDarkMode
+              ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`
+              : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+          }
+        </button>
+        <button class="sh-close-btn" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
       </div>
     </div>
   `;
@@ -681,18 +722,26 @@ async function createResponsePopup(
   ) as HTMLButtonElement;
   let currentTheme = isDarkMode ? "dark" : "light";
 
+  // On LinkedIn, hide the theme toggle button since theme follows LinkedIn
+  if (isLinkedIn && themeToggle) {
+    themeToggle.style.display = "none";
+  }
+
   themeToggle?.addEventListener("click", async () => {
-    currentTheme = currentTheme === "dark" ? "light" : "dark";
-    popup.setAttribute("data-theme", currentTheme);
-    await chrome.storage.sync.set({ theme: currentTheme });
-    themeToggle.innerHTML =
-      currentTheme === "dark"
-        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`
-        : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    // Only allow manual theme toggle on non-LinkedIn platforms
+    if (!isLinkedIn) {
+      currentTheme = currentTheme === "dark" ? "light" : "dark";
+      popup.setAttribute("data-theme", currentTheme);
+      await chrome.storage.sync.set({ theme: currentTheme });
+      themeToggle.innerHTML =
+        currentTheme === "dark"
+          ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`
+          : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    }
   });
 
   // Close button
-  const closeBtn = popup.querySelector(".cannerai-close-btn");
+  const closeBtn = popup.querySelector(".sh-close-btn");
   closeBtn?.addEventListener("click", () => {
     popup.remove();
     buttonElement.classList.remove("active");
@@ -712,11 +761,8 @@ async function createResponsePopup(
     const searchContainer = document.createElement("div");
     searchContainer.className = "sh-search-container";
     searchContainer.innerHTML = `
-      <svg class="sh-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="m21 21-4.35-4.35"/>
-      </svg>
-      <input class="sh-search" type="text" placeholder="Search by title, content, or tags..." ${
+      
+      <input class="sh-search" type="text" placeholder="Search by title, content..." ${
         responses.length === 0 ? "disabled" : ""
       }>
       <button class="sh-search-clear" style="display: none;">
@@ -749,38 +795,29 @@ async function createResponsePopup(
         item.className = "sh-menu-item";
         item.setAttribute("data-id", response.id);
 
-        const tags = Array.isArray(response.tags) ? response.tags : [];
-        const tagElements = tags
-          .slice(0, 2)
-          .map((tag: string) => `<span class="sh-tag">${tag}</span>`)
-          .join("");
-        const moreTags =
-          tags.length > 2
-            ? `<span class="sh-tag-more">+${tags.length - 2}</span>`
-            : "";
-
         item.innerHTML = `
-          <div class="sh-item-header">
+          <div class="sh-item-row">
             <h4 class="sh-item-title">${response.title}</h4>
-            <div class="sh-item-tags">${tagElements}${moreTags}</div>
+            <div class="sh-item-actions">
+              <button class="sh-btn-icon sh-btn-insert" data-content="${response.content.replace(
+                /"/g,
+                "&quot;"
+              )}" title="Insert">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button class="sh-btn-icon sh-btn-edit" data-id="${
+                response.id
+              }" title="Edit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="sh-btn-icon sh-btn-delete" data-id="${
+                response.id
+              }" title="Delete">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
           </div>
           <p class="sh-item-preview">${response.content}</p>
-          <div class="sh-item-actions">
-            <button class="sh-btn-action sh-btn-insert" data-content="${response.content.replace(
-              /"/g,
-              "&quot;"
-            )}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg> Insert
-            </button>
-            <button class="sh-btn-action sh-btn-edit" data-id="${response.id}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/><path d="M14.06 4.94l3.75 3.75"/></svg> Edit
-            </button>
-            <button class="sh-btn-action sh-btn-delete" data-id="${
-              response.id
-            }">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Delete
-            </button>
-          </div>
         `;
         menuItems.appendChild(item);
       });
@@ -1407,6 +1444,50 @@ function init() {
 
   // Add text selection handler
   addTextSelectionHandler();
+
+  // Watch for LinkedIn theme changes
+  if (window.location.hostname.includes("linkedin")) {
+    observeLinkedInThemeChanges();
+  }
+}
+
+// Observe LinkedIn theme changes and update pen buttons/popups accordingly
+function observeLinkedInThemeChanges() {
+  let lastTheme = detectLinkedInDarkMode() ? "dark" : "light";
+
+  const updateAllThemes = (newTheme: string) => {
+    // Update all pen buttons
+    document
+      .querySelectorAll(".social-helper-pen[data-platform='linkedin']")
+      .forEach((btn) => {
+        btn.setAttribute("data-theme", newTheme);
+      });
+    // Update popup if open
+    const popup = document.querySelector(".social-helper-menu");
+    if (popup) {
+      popup.setAttribute("data-theme", newTheme);
+    }
+  };
+
+  // Observe changes to html and body class/attributes for theme changes
+  const observer = new MutationObserver(() => {
+    const currentTheme = detectLinkedInDarkMode() ? "dark" : "light";
+    if (currentTheme !== lastTheme) {
+      console.log("Social Helper: LinkedIn theme changed to", currentTheme);
+      lastTheme = currentTheme;
+      updateAllThemes(currentTheme);
+    }
+  });
+
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class", "data-theme", "style"],
+  });
+
+  observer.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["class", "data-theme", "style"],
+  });
 }
 
 // Add helper buttons to all social media input boxes
@@ -1579,6 +1660,12 @@ function createPenButton(targetBox: HTMLElement): HTMLElement {
 
   if (isLinkedIn) {
     penContainer.setAttribute("data-platform", "linkedin");
+    // Detect and apply LinkedIn's dark mode theme
+    const linkedInDarkMode = detectLinkedInDarkMode();
+    penContainer.setAttribute(
+      "data-theme",
+      linkedInDarkMode ? "dark" : "light"
+    );
   } else if (isTwitter) {
     penContainer.setAttribute("data-platform", "twitter");
   }
@@ -1665,28 +1752,43 @@ function positionPenButton(
     container.appendChild(penButton);
   }
 
-  // Style button
-  const buttonSize = 32;
-  const padding = 2;
-  const bottomOffset = -4; // Shift down to align with input text area
+  // Style button - smaller size to match native icons
+  const buttonSize = 24;
+  const gap = 8; // Gap between icons (consistent with native spacing)
 
   penButton.style.position = "absolute";
   penButton.style.width = `${buttonSize}px`;
   penButton.style.height = `${buttonSize}px`;
-  penButton.style.zIndex = "10000";
+  penButton.style.zIndex = "1"; // Lower z-index to not float above
   penButton.style.marginBottom = "0";
   penButton.style.marginRight = "0";
 
-  // Calculate right offset based on input padding to avoid overlapping native icons
-  // If the input has large right padding (usually for icons), we position to the left of that padding
+  // Try to find native icon toolbar to align with it
+  const nativeIcons = container.querySelector(
+    '[class*="icons"], [class*="toolbar"], [class*="actions"]'
+  );
+  let bottomOffset = -4; // Default bottom offset
+
+  // For LinkedIn comment boxes, align with the emoji/media buttons row
+  if (nativeIcons) {
+    const nativeRect = nativeIcons.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    bottomOffset =
+      containerRect.bottom -
+      nativeRect.bottom +
+      (nativeRect.height - buttonSize) / 2;
+  }
+
+  // Calculate right offset based on input padding to position next to native icons
+  // Find existing icons/buttons in the container to align with them
   const inputStyle = window.getComputedStyle(inputElement);
   const paddingRight = parseFloat(inputStyle.paddingRight) || 0;
-  const rightOffset = paddingRight > 20 ? paddingRight + 2 : padding;
+  const rightOffset = paddingRight > 20 ? paddingRight + gap : gap;
 
-  // Anchor to bottom-right
+  // Anchor to bottom-right, aligned with other icons
   penButton.style.top = "auto";
   penButton.style.left = "auto";
-  penButton.style.bottom = `${bottomOffset}px`;
+  penButton.style.bottom = `${bottomOffset}px`; // Align with native icon row
   penButton.style.right = `${rightOffset}px`;
   let isVisible = false;
 
