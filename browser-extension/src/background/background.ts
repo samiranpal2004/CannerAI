@@ -48,7 +48,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Handle keyboard commands (if configured in manifest)
 chrome.commands?.onCommand.addListener((command) => {
-  console.log("Command:", command);
+  console.log("🔥 Command received:", command);
 
   if (command === "open-quick-response") {
     // Send message to active tab to show quick response menu
@@ -58,6 +58,36 @@ chrome.commands?.onCommand.addListener((command) => {
           action: "showQuickResponse",
         });
       }
+    });
+  }
+  if (command === "start-selection") {
+    console.log("🎯 Sending selection message");
+
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tabId = tabs[0]?.id;
+      if (!tabId) {
+        console.error("❌ No active tab found");
+        return;
+      }
+
+      console.log("📤 Sending to tab:", tabId);
+      chrome.tabs.sendMessage(
+        tabId,
+        {
+          action: "startSelectionMode",
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "❌ Message send error:",
+              chrome.runtime.lastError.message
+            );
+            console.log("💡 Make sure you're on LinkedIn or Twitter/X");
+          } else {
+            console.log("✅ Message sent successfully", response);
+          }
+        }
+      );
     });
   }
 });
