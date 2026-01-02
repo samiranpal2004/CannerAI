@@ -1608,6 +1608,13 @@ async function fetchLocalSuggestions(prefix: string): Promise<any[]> {
   });
 }
 
+function detectPlatform(): "linkedin" | "twitter" | "other" {
+  const host = window.location.hostname;
+  if (host.includes("linkedin")) return "linkedin";
+  if (host.includes("twitter") || host.includes("x.com")) return "twitter";
+  return "other";
+}
+
 // Initialize the helper
 function init() {
   console.log("Social Helper: Initializing for all platforms...");

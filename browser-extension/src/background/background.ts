@@ -82,7 +82,7 @@ chrome.commands?.onCommand.addListener((command) => {
               "❌ Message send error:",
               chrome.runtime.lastError.message
             );
-            console.log("💡 Make sure you're on LinkedIn or Twitter/X");
+            console.log("💡 Make sure the page has finished loading");
           } else {
             console.log("✅ Message sent successfully", response);
           }
