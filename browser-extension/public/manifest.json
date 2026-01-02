@@ -58,5 +58,20 @@
         "http://localhost:3000/*"
       ]
     }
-  ]
+  ],
+  "commands": {
+    "open-quick-response": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y"
+      },
+      "description": "Open quick response"
+    },
+    "start-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Start section selection"
+    }
+  }
 }

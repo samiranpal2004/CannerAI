@@ -11,6 +11,190 @@ const CONFIG = {
   BUTTON_COLOR: "#0a66c2", // LinkedIn blue
 };
 
+
+// ===== CONSOLIDATED MESSAGE LISTENER =====
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log("📩 Content script received:", msg);
+
+  // Handle selection mode
+  if (msg?.action === "startSelectionMode") {
+    console.log("🚀 Starting selection mode");
+    startSelectionMode();
+    sendResponse({ success: true, message: "Selection mode started" });
+    return true;
+  }
+
+  // Handle quick response
+  if (msg?.action === "showQuickResponse") {
+    console.log("⚡ Showing quick response");
+    if (lastFocusedInput) {
+      createResponsePopup(lastFocusedInput, lastFocusedInput);
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false, error: "No input focused" });
+    }
+    return true;
+  }
+
+  // Handle ping
+  if (msg.action === "ping") {
+    sendResponse({ pong: true });
+    return true;
+  }
+
+  // Handle insert response
+  if (msg.action === "insertResponse") {
+    console.log("Canner: Received insertResponse message", msg);
+
+    let targetElement =
+      lastFocusedInput || (document.activeElement as HTMLElement | null);
+
+    if (!targetElement || !isValidInputElement(targetElement)) {
+      const possibleInputs = [
+        ...Array.from(document.querySelectorAll('[contenteditable="true"]')),
+        ...Array.from(document.querySelectorAll("textarea")),
+        ...Array.from(document.querySelectorAll('input[type="text"]')),
+      ].filter((el) => {
+        const rect = (el as HTMLElement).getBoundingClientRect();
+        const style = window.getComputedStyle(el as HTMLElement);
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden"
+        );
+      });
+
+      targetElement = (possibleInputs[0] as HTMLElement) || null;
+    }
+
+    if (!targetElement || !isValidInputElement(targetElement)) {
+      console.error("Canner: No valid input element found");
+      sendResponse({
+        success: false,
+        error: "Please click in an input field first",
+      });
+      return true;
+    }
+
+    try {
+      targetElement.focus();
+      insertText(targetElement, msg.content);
+      console.log("Canner: Text inserted successfully");
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error("Canner: Error inserting text", error);
+      sendResponse({ success: false, error: "Failed to insert text" });
+    }
+
+    return true;
+  }
+
+  return true;
+});
+
+//screenshoot like selection
+function startSelectionMode() {
+  // prevent duplicates
+  if ((window as any).__cannerOverlay) return;
+
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.left = "0";
+  overlay.style.top = "0";
+  overlay.style.width = "100%";
+  overlay.style.height = "100%";
+  overlay.style.background = "rgba(0,0,0,0.1)";
+  overlay.style.cursor = "crosshair";
+  overlay.style.zIndex = "2147483647";
+
+  (window as any).__cannerOverlay = overlay;
+  document.body.appendChild(overlay);
+
+  const box = document.createElement("div");
+  box.style.position = "absolute";
+  box.style.border = "2px dashed #0b84ff";
+  box.style.pointerEvents = "none";
+  overlay.appendChild(box);
+
+  let startX = 0;
+  let startY = 0;
+  let dragging = false;
+
+  overlay.addEventListener("mousedown", (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+
+    box.style.left = startX + "px";
+    box.style.top = startY + "px";
+    box.style.width = "0px";
+    box.style.height = "0px";
+  });
+
+  overlay.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+
+    const x = Math.min(e.clientX, startX);
+    const y = Math.min(e.clientY, startY);
+    const w = Math.abs(e.clientX - startX);
+    const h = Math.abs(e.clientY - startY);
+
+    box.style.left = x + "px";
+    box.style.top = y + "px";
+    box.style.width = w + "px";
+    box.style.height = h + "px";
+  });
+
+  overlay.addEventListener("mouseup", () => {
+    dragging = false;
+    const rect = box.getBoundingClientRect();
+
+    extractTextFromRect(rect);
+    cleanup();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") cleanup();
+  });
+
+  function cleanup() {
+    overlay.remove();
+    delete (window as any).__cannerOverlay;
+  }
+}
+// store the selected content
+function extractTextFromRect(rect: DOMRect) {
+  const selectors = `
+    p, span, a, li,
+    h1, h2, h3, h4, h5, h6,
+    code, pre, td, th, blockquote
+  `;
+
+  const elements = Array.from(
+    document.querySelectorAll<HTMLElement>(selectors)
+  );
+
+  const inside = elements.filter((el) => {
+    const r = el.getBoundingClientRect();
+    return (
+      r.bottom > rect.top &&
+      r.top < rect.bottom &&
+      r.right > rect.left &&
+      r.left < rect.right
+    );
+  });
+
+  const text = inside
+    .map((el) => el.innerText.trim())
+    .filter(Boolean)
+    .join("\n\n");
+
+  console.log("📥 Captured content:", text);
+
+  // ➜ send to backend later
+}
+
 // helps to track the last focused input
 let lastFocusedInput: HTMLElement | null = null;
 
@@ -3355,64 +3539,3 @@ function isValidInputElement(element: HTMLElement | null): boolean {
 
   return isContentEditable || isInput;
 }
-
-// Listen for messages from popup or background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Handle ping to check if script is loaded
-  if (message.action === "ping") {
-    sendResponse({ pong: true });
-    return true;
-  }
-
-  if (message.action === "insertResponse") {
-    console.log("Canner: Received insertResponse message", message);
-
-    // Try to get the target element
-    let targetElement =
-      lastFocusedInput || (document.activeElement as HTMLElement | null);
-
-    // If no focused element found, search for visible input elements
-    if (!targetElement || !isValidInputElement(targetElement)) {
-      const possibleInputs = [
-        ...Array.from(document.querySelectorAll('[contenteditable="true"]')),
-        ...Array.from(document.querySelectorAll("textarea")),
-        ...Array.from(document.querySelectorAll('input[type="text"]')),
-      ].filter((el) => {
-        const rect = (el as HTMLElement).getBoundingClientRect();
-        const style = window.getComputedStyle(el as HTMLElement);
-        return (
-          rect.width > 0 &&
-          rect.height > 0 &&
-          style.display !== "none" &&
-          style.visibility !== "hidden"
-        );
-      });
-
-      targetElement = (possibleInputs[0] as HTMLElement) || null;
-    }
-
-    if (!targetElement || !isValidInputElement(targetElement)) {
-      console.error("Canner: No valid input element found");
-      sendResponse({
-        success: false,
-        error: "Please click in an input field first",
-      });
-      return true;
-    }
-
-    try {
-      // Focus the element before inserting
-      targetElement.focus();
-      insertText(targetElement, message.content);
-      console.log("Canner: Text inserted successfully");
-      sendResponse({ success: true });
-    } catch (error) {
-      console.error("Canner: Error inserting text", error);
-      sendResponse({ success: false, error: "Failed to insert text" });
-    }
-
-    return true;
-  }
-
-  return true;
-});
