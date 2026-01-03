@@ -1,0 +1,191 @@
+/* Zen Selection Additional Styles */
+
+/* Smooth fade-in animation for overlay */
+@keyframes zenFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes zenSlideUp {
+  from {
+    transform: translateX(-50%) translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes zenSlideDown {
+  from {
+    transform: translateX(-50%) translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes zenPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(11, 132, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(11, 132, 255, 0.1);
+  }
+}
+
+/* Zen Overlay Base */
+#canner-zen-overlay {
+  animation: zenFadeIn 0.3s ease-out;
+}
+
+/* Selection box pulse animation */
+#canner-zen-overlay .canner-selection-box {
+  animation: zenPulse 2s ease-in-out infinite;
+}
+
+/* Instruction banner animation */
+#canner-zen-overlay .canner-instruction-banner {
+  animation: zenSlideDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Cancel button animation */
+#canner-zen-overlay .canner-cancel-button {
+  animation: zenSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation-delay: 0.1s;
+  animation-fill-mode: backwards;
+}
+
+/* Selected element highlight animation */
+.canner-zen-selected {
+  animation: zenHighlight 0.3s ease-out;
+}
+
+@keyframes zenHighlight {
+  0% {
+    outline-color: rgba(11, 132, 255, 0);
+    background-color: rgba(11, 132, 255, 0);
+  }
+  50% {
+    outline-color: rgba(11, 132, 255, 1);
+    background-color: rgba(11, 132, 255, 0.2);
+  }
+  100% {
+    outline-color: rgba(11, 132, 255, 1);
+    background-color: rgba(11, 132, 255, 0.1);
+  }
+}
+
+/* Crosshair cursor enhancement */
+#canner-zen-overlay.crosshair-active {
+  cursor: crosshair !important;
+}
+
+/* Smooth transitions for all interactive elements */
+#canner-zen-overlay * {
+  transition: all 0.2s ease;
+}
+
+/* Kbd tag styling */
+#canner-zen-overlay kbd {
+  display: inline-block;
+  padding: 3px 7px;
+  font-family: "Courier New", monospace;
+  font-size: 13px;
+  background: #f4f4f4;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 0 2px #fff inset;
+  color: #333;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  #canner-zen-overlay .canner-instruction-banner,
+  #canner-zen-overlay .canner-cancel-button {
+    background: rgba(40, 40, 40, 0.95);
+    color: #f0f0f0;
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  #canner-zen-overlay kbd {
+    background: #2d2d2d;
+    border-color: #555;
+    color: #f0f0f0;
+  }
+}
+
+/* Loading state */
+@keyframes zenSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.canner-zen-loading::after {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #0b84ff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: zenSpin 0.8s linear infinite;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+/* Selection count badge */
+.canner-selection-count {
+  position: fixed;
+  top: 100px;
+  right: 40px;
+  background: rgba(11, 132, 255, 0.95);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 2147483647;
+  animation: zenSlideUp 0.3s ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #canner-zen-overlay .canner-instruction-banner {
+    padding: 12px 20px;
+    font-size: 14px;
+    max-width: 90%;
+  }
+
+  #canner-zen-overlay .canner-cancel-button {
+    padding: 10px 24px;
+    font-size: 14px;
+  }
+}
+
+/* Accessibility improvements */
+#canner-zen-overlay *:focus-visible {
+  outline: 3px solid #0b84ff;
+  outline-offset: 2px;
+}
+
+/* Print styles - hide zen selection UI */
+@media print {
+  #canner-zen-overlay,
+  #canner-zen-overlay * {
+    display: none !important;
+  }
+}

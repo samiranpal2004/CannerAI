@@ -2,6 +2,8 @@
 // Note: Can't use ES6 imports in content scripts injected this way
 // Config will be injected via webpack DefinePlugin
 
+import { ZenSelection } from "./zenSelection";
+
 declare const __API_URL__: string;
 
 const CONFIG = {
@@ -11,6 +13,8 @@ const CONFIG = {
   BUTTON_COLOR: "#0a66c2", // LinkedIn blue
 };
 
+// Global Zen Selection instance
+let zenSelectionInstance: ZenSelection | null = null;
 
 // ===== CONSOLIDATED MESSAGE LISTENER =====
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -18,9 +22,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Handle selection mode
   if (msg?.action === "startSelectionMode") {
-    console.log("🚀 Starting selection mode");
-    startSelectionMode();
-    sendResponse({ success: true, message: "Selection mode started" });
+    console.log("🚀 Starting Zen selection mode");
+    startZenSelectionMode();
+    sendResponse({ success: true, message: "Zen selection mode started" });
     return true;
   }
 
@@ -93,106 +97,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true;
 });
 
-//screenshoot like selection
-function startSelectionMode() {
-  // prevent duplicates
-  if ((window as any).__cannerOverlay) return;
-
-  const overlay = document.createElement("div");
-  overlay.style.position = "fixed";
-  overlay.style.left = "0";
-  overlay.style.top = "0";
-  overlay.style.width = "100%";
-  overlay.style.height = "100%";
-  overlay.style.background = "rgba(0,0,0,0.1)";
-  overlay.style.cursor = "crosshair";
-  overlay.style.zIndex = "2147483647";
-
-  (window as any).__cannerOverlay = overlay;
-  document.body.appendChild(overlay);
-
-  const box = document.createElement("div");
-  box.style.position = "absolute";
-  box.style.border = "2px dashed #0b84ff";
-  box.style.pointerEvents = "none";
-  overlay.appendChild(box);
-
-  let startX = 0;
-  let startY = 0;
-  let dragging = false;
-
-  overlay.addEventListener("mousedown", (e) => {
-    dragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-
-    box.style.left = startX + "px";
-    box.style.top = startY + "px";
-    box.style.width = "0px";
-    box.style.height = "0px";
-  });
-
-  overlay.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-
-    const x = Math.min(e.clientX, startX);
-    const y = Math.min(e.clientY, startY);
-    const w = Math.abs(e.clientX - startX);
-    const h = Math.abs(e.clientY - startY);
-
-    box.style.left = x + "px";
-    box.style.top = y + "px";
-    box.style.width = w + "px";
-    box.style.height = h + "px";
-  });
-
-  overlay.addEventListener("mouseup", () => {
-    dragging = false;
-    const rect = box.getBoundingClientRect();
-
-    extractTextFromRect(rect);
-    cleanup();
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") cleanup();
-  });
-
-  function cleanup() {
-    overlay.remove();
-    delete (window as any).__cannerOverlay;
+// Zen browser-like selection mode
+function startZenSelectionMode() {
+  // Check if already active
+  if (zenSelectionInstance?.isSelectionActive()) {
+    console.log("⚠️ Zen selection already active");
+    return;
   }
-}
-// store the selected content
-function extractTextFromRect(rect: DOMRect) {
-  const selectors = `
-    p, span, a, li,
-    h1, h2, h3, h4, h5, h6,
-    code, pre, td, th, blockquote
-  `;
 
-  const elements = Array.from(
-    document.querySelectorAll<HTMLElement>(selectors)
-  );
+  // Create new Zen selection instance
+  zenSelectionInstance = new ZenSelection({
+    onComplete: (selectedText, selectedElements) => {
+      console.log("✅ Selection complete!");
+      console.log("📝 Selected text:", selectedText);
+      console.log("📦 Elements count:", selectedElements.length);
 
-  const inside = elements.filter((el) => {
-    const r = el.getBoundingClientRect();
-    return (
-      r.bottom > rect.top &&
-      r.top < rect.bottom &&
-      r.right > rect.left &&
-      r.left < rect.right
-    );
+      // TODO: Send to backend or show save dialog
+      // For now, we'll store it in chrome storage
+      saveSelectedContent(selectedText);
+    },
+    onCancel: () => {
+      console.log("❌ Selection cancelled by user");
+    },
   });
 
-  const text = inside
-    .map((el) => el.innerText.trim())
-    .filter(Boolean)
-    .join("\n\n");
+  // Start the selection mode
+  zenSelectionInstance.start();
+}
 
-  console.log("📥 Captured content:", text);
+// Save selected content to storage
+function saveSelectedContent(text: string) {
+  chrome.storage.local.get(["savedSelections"], (result) => {
+    const selections = result.savedSelections || [];
+    selections.push({
+      text,
+      timestamp: Date.now(),
+      url: window.location.href,
+    });
 
-  // ➜ send to backend later
+    chrome.storage.local.set({ savedSelections: selections }, () => {
+      console.log("💾 Saved selection to storage", text);
+    });
+  });
 }
 
 // helps to track the last focused input
@@ -1606,6 +1552,13 @@ async function fetchLocalSuggestions(prefix: string): Promise<any[]> {
       resolve(matches);
     });
   });
+}
+
+function detectPlatform(): "linkedin" | "twitter" | "other" {
+  const host = window.location.hostname;
+  if (host.includes("linkedin")) return "linkedin";
+  if (host.includes("twitter") || host.includes("x.com")) return "twitter";
+  return "other";
 }
 
 // Initialize the helper
