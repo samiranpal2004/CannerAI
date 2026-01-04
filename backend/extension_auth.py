@@ -42,6 +42,24 @@ def _cleanup_expired_codes():
 def register_extension_auth_routes(app):
     """Register extension authentication routes with the Flask app."""
     
+    @app.route("/api/auth/extension/login", methods=["GET"])
+    def extension_login():
+        """
+        Extension login initiation endpoint.
+        Redirects to the webapp for user authentication.
+        
+        Query params: extension_id
+        """
+        from flask import redirect
+        
+        extension_id = request.args.get('extension_id')
+        # Use AUTH_FRONTEND_URL for browser redirects (what user sees in browser)
+        auth_frontend_url = os.getenv("AUTH_FRONTEND_URL", "http://localhost:3000")
+        
+        # Redirect to webapp's extension auth page
+        redirect_url = f"{auth_frontend_url}/extension-auth?extension_id={extension_id}"
+        return redirect(redirect_url)
+    
     @app.route("/api/auth/generate-code", methods=["POST"])
     def generate_extension_code():
         """
@@ -86,7 +104,7 @@ def register_extension_auth_routes(app):
         import requests
         
         data = request.get_json()
-        auth_code = data.get("auth_code")
+        auth_code = data.get("auth_code") if data else None
         
         if not auth_code:
             return jsonify({"error": "auth_code is required"}), 400
@@ -110,8 +128,8 @@ def register_extension_auth_routes(app):
             # Clean up the used code
             del AUTH_CODES[auth_code]
         else:
-            # Code not found locally, try forwarding to AUTH backend (port 3000)
-            auth_backend_url = os.getenv("AUTH_BACKEND_URL", "http://host.docker.internal:3000")
+            # Code not found locally, try forwarding to AUTH backend
+            auth_backend_url = os.getenv("AUTH_BACKEND_URL", "http://localhost:3000")
             
             try:
                 # Forward the request to the auth backend

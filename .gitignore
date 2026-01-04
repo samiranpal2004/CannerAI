@@ -60,4 +60,4 @@ build/
 *.tgz
 package-lock.json
 
-refrence_pics
+refrence_picsbackend/.env.docker

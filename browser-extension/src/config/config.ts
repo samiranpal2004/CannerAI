@@ -5,14 +5,12 @@
 
 interface Config {
   BACKEND_URL: string;       // Backend for API and authentication
-  AUTH_URL: string;          // Web app for OAuth login
   ENVIRONMENT: 'development' | 'production' | 'staging';
 }
 
 // Default development configuration
 const defaultConfig: Config = {
   BACKEND_URL: 'http://localhost:5000',
-  AUTH_URL: 'http://localhost:3000',
   ENVIRONMENT: 'development'
 };
 
@@ -20,7 +18,6 @@ const defaultConfig: Config = {
 // These can be overridden by webpack DefinePlugin or build-time variables
 const config: Config = {
   BACKEND_URL: process.env.REACT_APP_BACKEND_URL || defaultConfig.BACKEND_URL,
-  AUTH_URL: process.env.REACT_APP_AUTH_URL || defaultConfig.AUTH_URL,
   ENVIRONMENT: (process.env.NODE_ENV as Config['ENVIRONMENT']) || defaultConfig.ENVIRONMENT
 };
 
@@ -30,14 +27,11 @@ if (config.ENVIRONMENT === 'production') {
   if (!process.env.REACT_APP_BACKEND_URL) {
     config.BACKEND_URL = 'https://api.cannerai.com';
   }
-  if (!process.env.REACT_APP_AUTH_URL) {
-    config.AUTH_URL = 'https://app.cannerai.com';
-  }
 }
 
 // Validate configuration
 const validateConfig = () => {
-  const requiredFields: (keyof Config)[] = ['BACKEND_URL', 'AUTH_URL'];
+  const requiredFields: (keyof Config)[] = ['BACKEND_URL'];
   
   for (const field of requiredFields) {
     if (!config[field]) {
@@ -47,7 +41,6 @@ const validateConfig = () => {
   
   console.log('🔧 Extension Configuration:', {
     BACKEND_URL: config.BACKEND_URL,
-    AUTH_URL: config.AUTH_URL,
     ENVIRONMENT: config.ENVIRONMENT
   });
 };
