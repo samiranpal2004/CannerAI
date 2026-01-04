@@ -87,15 +87,21 @@ body[class*="linkedin"] .social-helper-pen:hover,
 .social-helper-pen[data-theme="dark"] {
   background: transparent;
 }
-
 .social-helper-pen[data-theme="dark"]:hover,
 .social-helper-pen[data-theme="dark"].pen-hover,
 .social-helper-pen[data-theme="dark"].active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(28, 28, 28, 0.95);   /* plain dark */
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
 }
 
+
 .social-helper-pen[data-theme="dark"][data-platform="linkedin"]:hover {
-  background: rgba(112, 181, 249, 0.15);
+  background: rgba(28, 28, 28, 0.95);
+}
+
+.social-helper-pen[data-theme="dark"] {
+  border: 1px solid transparent;
 }
 
 .social-helper-pen[data-theme="dark"] .pen-icon {
@@ -846,11 +852,11 @@ body[class*="linkedin"] .social-helper-pen:hover,
 }
 
 .lh-save-selection-btn {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #107cf7 0%, #0d72f7 100%);
   color: white !important;
   border: none !important;
-  width: 36px !important;
-  height: 36px !important;
+  width: 25px !important;
+  height: 25px !important;
   border-radius: 50% !important;
   display: flex !important;
   align-items: center !important;
@@ -858,12 +864,19 @@ body[class*="linkedin"] .social-helper-pen:hover,
   font-size: 24px !important;
   font-weight: 700 !important;
   cursor: pointer !important;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+  box-shadow: 0 4px 12px rgba(6, 96, 231, 0.904) !important;
   transition: all 0.2s ease !important;
   pointer-events: all !important;
   z-index: 999999 !important;
   position: relative !important;
   outline: none !important;
+}
+.lh-plus-icon svg {
+  width: 16px !important;
+  height: 16px !important;
+  display: block !important;
+  color: currentColor !important;   /* for currentColor */
+  fill: white !important;
 }
 
 .lh-plus-icon {
@@ -873,12 +886,15 @@ body[class*="linkedin"] .social-helper-pen:hover,
   color: white !important;
   pointer-events: none !important;
   user-select: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .lh-save-selection-btn:hover {
   transform: scale(1.1) !important;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5) !important;
-  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  box-shadow: 0 6px 20px rgba(16, 139, 240, 0.5) !important;
+  background: linear-gradient(135deg, #097afa 0%, #0987fd 100%) !important;
 }
 
 .lh-save-selection-btn:active {
