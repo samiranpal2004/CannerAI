@@ -1230,24 +1230,22 @@ class InlineSuggestionManager {
   }
 
   private async fetchSuggestions(prefix: string): Promise<any[]> {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(["responses"], (result) => {
-        const responses = result.responses || [];
-        const prefixLower = prefix.toLowerCase();
+  const storage = await chrome.storage.local.get(["app_jwt_token"]);
+  const token = storage.app_jwt_token;
 
-        const matches = responses.filter((response: any) => {
-          const content = (
-            response.content ||
-            response.title ||
-            ""
-          ).toLowerCase();
-          return content.startsWith(prefixLower);
-        });
+  const res = await fetch(`${CONFIG.API_URL}/api/responses`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
 
-        resolve(matches);
-      });
-    });
-  }
+  const all = await res.json();
+
+  const q = prefix.toLowerCase();
+
+  return all.filter((r: any) =>
+    (r.content || "").toLowerCase().startsWith(q)
+  );
+}
+
 
   private showSuggestion(suggestion: any, currentText: string) {
     this.currentSuggestion = suggestion;
