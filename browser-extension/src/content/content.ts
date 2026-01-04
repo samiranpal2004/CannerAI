@@ -1230,23 +1230,20 @@ class InlineSuggestionManager {
   }
 
   private async fetchSuggestions(prefix: string): Promise<any[]> {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(["responses"], (result) => {
-        const responses = result.responses || [];
-        const prefixLower = prefix.toLowerCase();
+    const storage = await chrome.storage.local.get(["app_jwt_token"]);
+    const token = storage.app_jwt_token;
 
-        const matches = responses.filter((response: any) => {
-          const content = (
-            response.content ||
-            response.title ||
-            ""
-          ).toLowerCase();
-          return content.startsWith(prefixLower);
-        });
-
-        resolve(matches);
-      });
+    const res = await fetch(`${CONFIG.API_URL}/api/responses`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
+
+    const all = await res.json();
+
+    const q = prefix.toLowerCase();
+
+    return all.filter((r: any) =>
+      (r.content || "").toLowerCase().startsWith(q)
+    );
   }
 
   private showSuggestion(suggestion: any, currentText: string) {
@@ -1561,30 +1558,27 @@ function detectPlatform(): "linkedin" | "twitter" | "other" {
   return "other";
 }
 
-// Initialize the helper
 function init() {
-  console.log("Social Helper: Initializing for all platforms...");
+  console.log("Social Helper: Initializing...");
 
-  trackFocusedInputs(); // add to track focused input
-
-  // Add pen buttons to all input boxes
-  addMessageHelpers();
-
-  // Add helper buttons to connection request messages (legacy)
-  addConnectionHelpers();
-
-  // Monitor DOM changes to inject helpers in dynamically loaded content
-  observeDOM();
-
-  // Add keyboard shortcuts
+  // Always-on features (work on every website)
+  trackFocusedInputs();
+  addTextSelectionHandler(); // <<--- Zen selection should work everywhere
   addKeyboardShortcuts();
 
-  // Add text selection handler
-  addTextSelectionHandler();
 
-  // Watch for LinkedIn theme changes
+  // Only enable the social UI on LinkedIn (keep UX minimal elsewhere)
   if (window.location.hostname.includes("linkedin")) {
+    addMessageHelpers();
+    addConnectionHelpers();
+    observeDOM();
     observeLinkedInThemeChanges();
+  } else {
+    // Non-LinkedIn: we only want Zen selection active.
+    // If you want to still keep DOM observation for future features,
+    // enable below (disabled by default):
+    // observeDOMForSelectionOnly();
+    console.log("Social Helper: Running in minimal mode (non-LinkedIn).");
   }
 }
 
@@ -1629,6 +1623,10 @@ function observeLinkedInThemeChanges() {
 
 // Add helper buttons to all social media input boxes
 function addMessageHelpers() {
+  // Only inject message helpers (pen / popup / suggestions) on LinkedIn
+  if (!window.location.hostname.includes("linkedin")) {
+    return;
+  }
   console.log("Social Helper: Adding message helpers...");
 
   const selectors = [
@@ -1723,10 +1721,11 @@ function addMessageHelpers() {
           resolvedEditable.id = `${box.id}-editable`;
         }
 
-        if (!suggestionManagers[resolvedEditable.id]) {
-          suggestionManagers[resolvedEditable.id] = new InlineSuggestionManager(
-            resolvedEditable as HTMLElement
-          );
+        if (window.location.hostname.includes("linkedin")) {
+          if (!suggestionManagers[resolvedEditable.id]) {
+            suggestionManagers[resolvedEditable.id] =
+              new InlineSuggestionManager(resolvedEditable as HTMLElement);
+          }
         }
       } catch (err) {
         console.error("Canner: Failed to attach SuggestionManager:", err);
@@ -1790,11 +1789,6 @@ function createPenButton(targetBox: HTMLElement): HTMLElement {
     document.body.className.includes("linkedin") ||
     targetBox.closest('[class*="linkedin"]') !== null;
 
-  const isTwitter =
-    window.location.hostname.includes("twitter") ||
-    window.location.hostname.includes("x.com") ||
-    targetBox.closest("[data-testid]") !== null;
-
   if (isLinkedIn) {
     penContainer.setAttribute("data-platform", "linkedin");
     // Detect and apply LinkedIn's dark mode theme
@@ -1803,8 +1797,11 @@ function createPenButton(targetBox: HTMLElement): HTMLElement {
       "data-theme",
       linkedInDarkMode ? "dark" : "light"
     );
-  } else if (isTwitter) {
-    penContainer.setAttribute("data-platform", "twitter");
+  } // If NOT LinkedIn → return placeholder (NO pen)
+  if (!isLinkedIn) {
+    const placeholder = document.createElement("div");
+    placeholder.style.display = "none";
+    return placeholder;
   }
 
   penContainer.innerHTML = `
@@ -2801,9 +2798,7 @@ async function deleteResponse(id: string): Promise<void> {
       return;
     }
   } catch (error) {
-    console.log(
-      "Canner: Backend not available for delete"
-    );
+    console.log("Canner: Backend not available for delete");
   }
 
   // Fallback to Chrome storage
@@ -3045,8 +3040,11 @@ function observeDOM() {
 
     if (shouldReinject) {
       setTimeout(() => {
-        addMessageHelpers();
-        addConnectionHelpers();
+        // Only inject helpers on LinkedIn
+        if (window.location.hostname.includes("linkedin")) {
+          addMessageHelpers();
+          addConnectionHelpers();
+        }
       }, 1000);
     }
   });
@@ -3059,6 +3057,8 @@ function observeDOM() {
 
 // Add keyboard shortcuts
 function addKeyboardShortcuts() {
+  if (!window.location.hostname.includes("linkedin")) return;
+
   document.addEventListener("keydown", (e) => {
     // Ctrl+Shift+L to open quick responses
     if (e.ctrlKey && e.shiftKey && e.key === "L") {
@@ -3363,7 +3363,6 @@ async function saveResponseDirectly(text: string) {
   showToast("💾 Saving response in db...");
   // Try to save to backend first
   try {
-    
     const storage = await chrome.storage.local.get(["app_jwt_token"]);
     const token = storage.app_jwt_token;
 
@@ -3391,11 +3390,10 @@ async function saveResponseDirectly(text: string) {
     } else {
       console.log("Canner: Backend returned error:", response.statusText);
       showToast("❌ Canner: Backend returned error");
-
     }
   } catch (error) {
     console.log("Canner: Backend not available. Error:", error);
-    showToast("fail")
+    showToast("fail");
   }
 }
 
