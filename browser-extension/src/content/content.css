@@ -87,15 +87,21 @@ body[class*="linkedin"] .social-helper-pen:hover,
 .social-helper-pen[data-theme="dark"] {
   background: transparent;
 }
-
 .social-helper-pen[data-theme="dark"]:hover,
 .social-helper-pen[data-theme="dark"].pen-hover,
 .social-helper-pen[data-theme="dark"].active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(28, 28, 28, 0.95);   /* plain dark */
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
 }
 
+
 .social-helper-pen[data-theme="dark"][data-platform="linkedin"]:hover {
-  background: rgba(112, 181, 249, 0.15);
+  background: rgba(28, 28, 28, 0.95);
+}
+
+.social-helper-pen[data-theme="dark"] {
+  border: 1px solid transparent;
 }
 
 .social-helper-pen[data-theme="dark"] .pen-icon {

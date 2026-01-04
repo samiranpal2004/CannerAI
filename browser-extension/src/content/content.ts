@@ -2802,7 +2802,7 @@ async function deleteResponse(id: string): Promise<void> {
     }
   } catch (error) {
     console.log(
-      "Canner: Backend not available for delete, using local storage"
+      "Canner: Backend not available for delete"
     );
   }
 
@@ -2831,7 +2831,7 @@ async function fetchResponses(): Promise<any[]> {
     const token = storage.app_jwt_token;
 
     if (!token) {
-      console.log("Canner: No auth token, using local storage");
+      console.log("Canner: No auth token");
       // Fallback to Chrome storage
       return new Promise((resolve) => {
         chrome.storage.local.get(["responses"], (result) => {
@@ -2854,7 +2854,7 @@ async function fetchResponses(): Promise<any[]> {
       return data;
     }
   } catch (error) {
-    console.log("Canner: Backend not available, using local storage");
+    console.log("Canner: Backend not available.");
   }
 
   // Fallback to Chrome storage
@@ -3307,35 +3307,15 @@ async function _showSaveDialog(text: string) {
         showToast("✅ Response saved successfully!");
         closeModal();
       } else {
-        // Try Chrome storage as fallback
-        await saveToLocalStorage({ title, content, tags, category });
-        showToast("✅ Response saved locally!");
-        closeModal();
+        const errorText = await response.text(); // optional
+        console.error("API error:", errorText);
+        showToast("❌ Failed to save response. Please try again.");
       }
     } catch (error) {
-      // Fallback to Chrome storage
-      await saveToLocalStorage({ title, content, tags, category });
-      showToast("✅ Response saved locally!");
-      closeModal();
+      console.error("Network/API error:", error);
+      showToast("❌ Something went wrong. Check your internet & try again.");
     }
   });
-}
-
-// Save to Chrome local storage
-async function saveToLocalStorage(data: {
-  title: string;
-  content: string;
-  tags: string;
-  category: string;
-}) {
-  const result = await chrome.storage.local.get(["responses"]);
-  const responses = result.responses || [];
-  responses.push({
-    id: Date.now(),
-    ...data,
-    created_at: new Date().toISOString(),
-  });
-  await chrome.storage.local.set({ responses });
 }
 
 // Show success toast message
@@ -3357,9 +3337,6 @@ async function saveResponseDirectly(text: string) {
     showToast("❌ No text to save");
     return;
   }
-
-  // Show immediate feedback
-  showToast("💾 Saving response...");
 
   // Generate auto title from first 50 chars
   const autoTitle = text.length > 50 ? text.substring(0, 47) + "..." : text;
@@ -3383,9 +3360,10 @@ async function saveResponseDirectly(text: string) {
     CONFIG.API_URL,
     responseData
   );
-
+  showToast("💾 Saving response in db...");
   // Try to save to backend first
   try {
+    
     const storage = await chrome.storage.local.get(["app_jwt_token"]);
     const token = storage.app_jwt_token;
 
@@ -3412,33 +3390,12 @@ async function saveResponseDirectly(text: string) {
       return;
     } else {
       console.log("Canner: Backend returned error:", response.statusText);
+      showToast("❌ Canner: Backend returned error");
+
     }
   } catch (error) {
-    console.log("Canner: Backend not available, saving locally. Error:", error);
-  }
-
-  // Fallback to Chrome storage
-  try {
-    console.log("Canner: Saving to Chrome local storage");
-    const result = await chrome.storage.local.get(["responses"]);
-    const responses = result.responses || [];
-
-    const newResponse = {
-      id: Date.now().toString(),
-      ...responseData,
-      tags: Array.isArray(responseData.tags)
-        ? responseData.tags
-        : [responseData.tags].filter(Boolean),
-      created_at: timestamp,
-    };
-
-    responses.push(newResponse);
-    await chrome.storage.local.set({ responses });
-    console.log("Canner: Saved to local storage successfully", newResponse);
-    showToast("✅ Response saved locally!");
-  } catch (err) {
-    console.error("Canner: Save error:", err);
-    showToast("❌ Failed to save response");
+    console.log("Canner: Backend not available. Error:", error);
+    showToast("fail")
   }
 }
 
