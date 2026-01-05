@@ -22,6 +22,69 @@
   overflow: hidden; /* Hide menu initially */
 }
 
+/* small visual: make the expanded item slightly taller and give a tiny gap */
+.sh-menu-item.expanded {
+  padding-bottom: 12px;
+}
+
+/* optional: animate preview collapse/expand (if you want more polish) */
+.sh-item-preview {
+  transition: max-height 180ms ease, opacity 140ms ease;
+  max-height: 3.2em; /* 2 lines approx */
+  overflow: hidden;
+}
+.sh-menu-item.expanded .sh-item-preview {
+  max-height: 8em;
+  opacity: 1;
+}
+
+.sh-item-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* caret */
+.sh-caret {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  transition: transform .18s ease, color .18s ease, opacity .18s ease;
+  opacity: .7;
+}
+.sh-menu-item.expanded .sh-caret {
+  transform: rotate(180deg);
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+/* make cursor feel clickable */
+.sh-item-left {
+  cursor: pointer;
+}
+
+.sh-menu-item:hover .sh-caret {
+  opacity: 1;
+}
+
+.sh-item-footer {
+  display: none;
+  margin-top: 10px;
+  gap: 6px;
+  justify-content: flex-end;
+
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sh-menu-item.expanded .sh-item-footer {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* Inline ghost suggestion shown after caret (grey completion) */
 .canner-ghost-suggestion,
 .sh-inline-suggestion {
@@ -90,11 +153,10 @@ body[class*="linkedin"] .social-helper-pen:hover,
 .social-helper-pen[data-theme="dark"]:hover,
 .social-helper-pen[data-theme="dark"].pen-hover,
 .social-helper-pen[data-theme="dark"].active {
-  background: rgba(28, 28, 28, 0.95);   /* plain dark */
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+  background: rgba(28, 28, 28, 0.95); /* plain dark */
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
 }
-
 
 .social-helper-pen[data-theme="dark"][data-platform="linkedin"]:hover {
   background: rgba(28, 28, 28, 0.95);
@@ -875,7 +937,7 @@ body[class*="linkedin"] .social-helper-pen:hover,
   width: 16px !important;
   height: 16px !important;
   display: block !important;
-  color: currentColor !important;   /* for currentColor */
+  color: currentColor !important; /* for currentColor */
   fill: white !important;
 }
 
