@@ -41,10 +41,10 @@ export class ZenSelection {
       pointer-events: none;
       z-index: 2147483647;
       border-radius: 6px;
-      background: rgba(255,255,255,0.25);
-      backdrop-filter: blur(1px);
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(0px);
       -webkit-backdrop-filter: blur(3px);
-      box-shadow: 0 0 0 2px rgba(11,132,255,0.4);
+      box-shadow: 0 0 0 2px rgba(11, 133, 255, 0.47);
       transition: all .08s ease;
     `;
       document.body.appendChild(this.hoverOverlay);
