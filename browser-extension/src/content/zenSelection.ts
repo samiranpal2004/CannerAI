@@ -11,6 +11,7 @@ export class ZenSelection {
   private cancelButton: HTMLElement | null = null;
   private instructionText: HTMLElement | null = null;
   private highlightBox: HTMLElement | null = null;
+  private hoverOverlay: HTMLElement | null = null;
   private isActive: boolean = false;
   private options: SelectionOptions;
 
@@ -30,6 +31,25 @@ export class ZenSelection {
     this.addKeyboardListeners();
 
     console.log("🎯 Zen Selection Mode Activated");
+  }
+
+  private getHoverOverlay(): HTMLElement {
+    if (!this.hoverOverlay) {
+      this.hoverOverlay = document.createElement("div");
+      this.hoverOverlay.style.cssText = `
+      position: fixed;
+      pointer-events: none;
+      z-index: 2147483647;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.25);
+      backdrop-filter: blur(1px);
+      -webkit-backdrop-filter: blur(3px);
+      box-shadow: 0 0 0 2px rgba(11,132,255,0.4);
+      transition: all .08s ease;
+    `;
+      document.body.appendChild(this.hoverOverlay);
+    }
+    return this.hoverOverlay;
   }
 
   private createOverlay() {
@@ -149,10 +169,8 @@ export class ZenSelection {
       if (isDragging) return;
 
       // Remove previous hover highlight
-      if (hoveredElement) {
-        hoveredElement.style.outline = "";
-        hoveredElement.style.outlineOffset = "";
-      }
+      const hoverBox = this.getHoverOverlay();
+      hoverBox.style.display = "none";
 
       // Get element under cursor (excluding overlay)
       const elementsAtPoint = document.elementsFromPoint(e.clientX, e.clientY);
@@ -168,8 +186,15 @@ export class ZenSelection {
         const selectableElement = this.findSelectableElement(targetElement);
         if (selectableElement) {
           hoveredElement = selectableElement;
-          hoveredElement.style.outline = "2px solid #0b84ff";
-          hoveredElement.style.outlineOffset = "2px";
+
+          const rect = hoveredElement.getBoundingClientRect();
+          const hoverBox = this.getHoverOverlay();
+
+          hoverBox.style.display = "block";
+          hoverBox.style.left = rect.left + "px";
+          hoverBox.style.top = rect.top + "px";
+          hoverBox.style.width = rect.width + "px";
+          hoverBox.style.height = rect.height + "px";
         }
       }
     };
@@ -264,6 +289,10 @@ export class ZenSelection {
               selectableElement.tagName
             );
             this.handleSelection([selectableElement]);
+          } else if (!selectableElement) {
+            const hoverBox = this.getHoverOverlay();
+            hoverBox.style.display = "none";
+            return;
           } else {
             console.log("❌ No selectable element found");
           }
@@ -510,6 +539,9 @@ export class ZenSelection {
       document.removeEventListener("mouseup", handlers.handleMouseUp);
       delete (this as any)._mouseHandlers;
     }
+
+    this.hoverOverlay?.remove();
+    this.hoverOverlay = null;
 
     // Remove all visual elements
     this.overlay?.remove();
