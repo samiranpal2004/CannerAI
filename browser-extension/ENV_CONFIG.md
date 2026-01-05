@@ -2,23 +2,20 @@
 
 ## Configuration Variables
 
-The extension uses two environment variables:
+The extension uses one environment variable:
 
-- **REACT_APP_BACKEND_URL** - Backend API URL (Flask server for API and authentication)
-- **REACT_APP_AUTH_URL** - Web app URL (for OAuth login page)
+- **REACT_APP_BACKEND_URL** - Backend API URL (Flask server for all API operations including authentication)
 
 ## Environment Files
 
 ### Development (`.env.development`)
 ```env
 REACT_APP_BACKEND_URL=http://localhost:5000
-REACT_APP_AUTH_URL=http://localhost:3000
 ```
 
 ### Production (`.env.production`)
 ```env
 REACT_APP_BACKEND_URL=https://api.cannerai.com
-REACT_APP_AUTH_URL=https://app.cannerai.com
 ```
 
 ## Build Commands

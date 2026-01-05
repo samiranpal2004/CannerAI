@@ -1,4 +1,5 @@
 // Background service worker for Canner
+import config from '../config/config';
 
 console.log("Canner: Background script loaded");
 
@@ -12,7 +13,7 @@ chrome.runtime.onInstalled.addListener((details) => {
       responses: [],
       settings: {
         autoShowButton: true,
-        apiUrl: "http://localhost:5000",
+        apiUrl: config.BACKEND_URL,
       },
     });
 
@@ -95,10 +96,10 @@ chrome.commands?.onCommand.addListener((command) => {
 // Sync with backend periodically
 setInterval(async () => {
   try {
-    const result = await fetch("http://localhost:5000/api/health");
+    const result = await fetch(`${config.BACKEND_URL}/api/health`);
     if (result.ok) {
       // Backend is available, sync data
-      const responses = await fetch("http://localhost:5000/api/responses");
+      const responses = await fetch(`${config.BACKEND_URL}/api/responses`);
       if (responses.ok) {
         const data = await responses.json();
         chrome.storage.local.set({ responses: data });

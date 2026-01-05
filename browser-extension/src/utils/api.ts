@@ -2,7 +2,6 @@
 import config from '../config/config';
 
 const BACKEND_URL = config.BACKEND_URL;
-const AUTH_URL = config.AUTH_URL;
 
 export interface CannedMessage {
   id?: string;
@@ -74,13 +73,13 @@ export async function clearAuth(): Promise<void> {
 }
 
 /**
- * Initiate OAuth login by opening the web app auth page
+ * Initiate OAuth login by opening the backend auth page
  */
 export async function initiateLogin(): Promise<void> {
   const extensionId = chrome.runtime.id;
-  const authUrl = `${AUTH_URL}/extension-auth?extension_id=${extensionId}`;
+  const authUrl = `${BACKEND_URL}/api/auth/extension/login?extension_id=${extensionId}`;
   
-  // Open the web app in a new tab for authentication
+  // Open the backend auth page in a new tab for authentication
   chrome.tabs.create({ url: authUrl });
 }
 
