@@ -926,33 +926,97 @@ async function createResponsePopup(
         item.setAttribute("data-id", response.id);
 
         item.innerHTML = `
-          <div class="sh-item-row">
-            <h4 class="sh-item-title">${response.title}</h4>
-            <div class="sh-item-actions">
-              <button class="sh-btn-icon sh-btn-insert" data-content="${response.content.replace(
-                /"/g,
-                "&quot;"
-              )}" title="Insert">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-              </button>
-              <button class="sh-btn-icon sh-btn-edit" data-id="${
-                response.id
-              }" title="Edit">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-              <button class="sh-btn-icon sh-btn-delete" data-id="${
-                response.id
-              }" title="Delete">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-              </button>
-            </div>
-          </div>
-          <p class="sh-item-preview">${response.content}</p>
-        `;
+  <div class="sh-item-row">
+    <div class="sh-item-left">
+        <span class="sh-caret">
+    <svg xmlns="http://www.w3.org/2000/svg"
+         viewBox="0 0 24 24"
+         width="18"
+         height="18"
+         fill="currentColor">
+      <path d="M12 14L8 10H16L12 14Z"></path>
+    </svg>
+  </span>
+      <h4 class="sh-item-title">${response.title}</h4>
+    </div>
+
+    <div class="sh-item-actions">
+      <button class="sh-btn-icon sh-btn-insert" 
+        data-content="${response.content.replace(/"/g, "&quot;")}" 
+        title="Insert">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <p class="sh-item-preview">${response.content}</p>
+
+  <div class="sh-item-footer">
+    <button class="sh-btn-icon sh-btn-edit" data-id="${
+      response.id
+    }" title="Edit">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+    </button>
+
+    <button class="sh-btn-icon sh-btn-delete" data-id="${
+      response.id
+    }" title="Delete">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      </svg>
+    </button>
+  </div>
+`;
+
         menuItems.appendChild(item);
       });
     }
     popup.appendChild(menuItems);
+
+    popup.querySelectorAll(".sh-menu-item").forEach((item) => {
+      // allow keyboard activation
+      item.setAttribute("tabindex", "0");
+
+      item.addEventListener("click", (e) => {
+        // if user clicked one of the action buttons, don't toggle expand
+        if (
+          e.target instanceof Element &&
+          e.target.closest(".sh-btn-icon, .sh-btn-action")
+        ) {
+          return;
+        }
+        // collapse other expanded item (optional: keeps only one expanded at a time)
+        const currently = popup.querySelector(".sh-menu-item.expanded");
+        if (currently && currently !== item) {
+          currently.classList.remove("expanded");
+        }
+        item.classList.toggle("expanded");
+      });
+
+      // keyboard support (Enter / Space)
+      item.addEventListener("keydown", (e: Event) => {
+        const keyEvent = e as KeyboardEvent;
+        if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+          keyEvent.preventDefault();
+          // same logic as click
+          const currently = popup.querySelector(".sh-menu-item.expanded");
+          if (currently && currently !== item) {
+            currently.classList.remove("expanded");
+          }
+          item.classList.toggle("expanded");
+        } else if (
+          keyEvent.key === "Escape" &&
+          item.classList.contains("expanded")
+        ) {
+          item.classList.remove("expanded");
+        }
+      });
+    });
 
     // Footer
     const footer = document.createElement("div");
@@ -1565,7 +1629,6 @@ function init() {
   trackFocusedInputs();
   addTextSelectionHandler(); // <<--- Zen selection should work everywhere
   addKeyboardShortcuts();
-
 
   // Only enable the social UI on LinkedIn (keep UX minimal elsewhere)
   if (window.location.hostname.includes("linkedin")) {
